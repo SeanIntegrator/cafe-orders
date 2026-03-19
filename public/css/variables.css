@@ -1,0 +1,13 @@
+:root {
+  --bg: #f1f3e6;          /* Limewash cream */
+  --surface: #f1f3e6;     /* Card surface: Limewash cream */
+  --surface-alt: #d7ecdd; /* Celadon Mist */
+  --border: #d1c3a0;
+  --text: #514343;        /* Mocha Bark */
+  --muted: #838472;       /* Verdant Earth */
+  --eat-in: #a4ac83;      /* Sage Matcha */
+  --takeaway: #9d785b;    /* Roasted Clay */
+  --paid: #a4ac83;        /* Sage Matcha */
+  --unpaid: #9d785b;      /* Roasted Clay */
+  --accent: #9d785b;      /* Roasted Clay */
+}

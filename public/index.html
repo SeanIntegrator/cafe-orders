@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Orders</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Funnel+Sans:wght@400;500;600;700&family=Tangerine:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/card.css">
+  <link rel="stylesheet" href="css/modal.css">
+  <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+
+<header>
+  <h1>
+    <img src="logo.png" alt="Clay and Bean logo" class="brand-mark" />
+    Clay & Bean <span class="flow">Flow</span>
+  </h1>
+  <div class="live-dot">Live</div>
+  <div class="header-right">
+    <span class="order-count" id="order-count">0 active</span>
+    <button type="button" class="demo-btn" id="create-test-order-btn" title="Create a test order (appears as a new card)">Create test order</button>
+  </div>
+</header>
+
+<div id="board-container">
+  <div class="board-empty-state" id="empty-state">
+    <div class="icon">🫙</div>
+    <span>Waiting for orders...</span>
+  </div>
+  <div class="board-rows hidden" id="board-rows">
+    <section class="board-row">
+      <h2 class="board-row-label takeaway">Takeaway</h2>
+      <div class="board-row-scroll" id="board-takeaway"></div>
+    </section>
+    <section class="board-row">
+      <h2 class="board-row-label eat-in">Eat in</h2>
+      <div class="board-row-scroll" id="board-eat-in"></div>
+    </section>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="order-modal-overlay">
+  <div class="order-modal" id="order-modal">
+    <div class="order-modal-header">
+      <h2>New order</h2>
+      <button type="button" class="order-modal-close" id="order-modal-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="order-modal-body">
+      <div class="order-modal-items" id="order-modal-items"></div>
+      <div class="order-modal-sidebar">
+        <div class="order-modal-sidebar-title">Current order</div>
+        <div class="order-modal-current-list" id="order-modal-current-list"></div>
+        <div class="order-modal-footer">
+          <button type="button" class="order-modal-create-btn" id="order-modal-create-btn" disabled>Create order</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

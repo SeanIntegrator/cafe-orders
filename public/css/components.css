@@ -1,0 +1,130 @@
+.brand-mark {
+  display: inline-block;
+  width: 40px;
+  height: 40px;
+}
+
+.live-dot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.live-dot::before {
+  content: '';
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--paid);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
+}
+
+.demo-btn {
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.demo-btn:hover {
+  color: var(--text);
+  border-color: var(--muted);
+  background: rgba(131, 132, 114, 0.08);
+}
+.demo-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.demo-toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 100;
+  animation: fadeIn 0.2s ease;
+}
+.demo-toast.success { background: var(--eat-in); color: var(--bg); }
+.demo-toast.error { background: var(--takeaway); color: var(--bg); }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* Badge variants */
+.badge {
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.badge.eat-in { background: rgba(200, 240, 160, 0.12); color: var(--eat-in); border: 1px solid rgba(200,240,160,0.25); }
+.badge.takeaway { background: rgba(157, 120, 91, 0.08); color: var(--takeaway); border: 1px solid rgba(157,120,91,0.25); }
+.badge.paid { background: rgba(164, 172, 131, 0.12); color: var(--paid); border: 1px solid rgba(164,172,131,0.3); }
+.badge.unpaid { background: rgba(157, 120, 91, 0.12); color: var(--unpaid); border: 1px solid rgba(157,120,91,0.3); }
+
+/* Milk chip colour coding */
+.milk-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.milk-chip--coconut {
+  background: rgba(74, 111, 165, 0.45);
+  border-color: var(--surface);
+  color: var(--surface);
+}
+
+.milk-chip--almond {
+  background: rgba(229, 143, 191, 0.9);
+  border-color: rgba(229, 143, 191, 1);
+  color: #ffffff;
+}
+
+.milk-chip--soy {
+  background: rgba(164, 172, 131, 0.9);
+  border-color: rgba(164, 172, 131, 1);
+  color: #ffffff;
+}
+
+.milk-chip--oat {
+  background: rgba(157, 120, 91, 0.9);
+  border-color: rgba(157, 120, 91, 1);
+  color: #ffffff;
+}
+
+.milk-chip--skinny {
+  background: rgba(196, 91, 91, 0.9);
+  border-color: rgba(196, 91, 91, 1);
+  color: #ffffff;
+}
+
+.flow {
+  font-family: 'Tangerine', cursive;
+}

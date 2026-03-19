@@ -1,0 +1,29 @@
+Live café order display board ("Clay and Bean Flow") for a Square Terminal setup.
+
+Architecture
+- Square Terminal → Square Webhooks → Node.js/Express + Socket.io backend (Railway) → static frontend (single index.html in /public).
+- Webhook receives order ID; backend fetches full order via Square Orders API (fetchOrder in index.js) and emits to frontend via Socket.io "new-order".
+- Frontend: public/index.html (HTML + inline CSS + JS). Backend: index.js. SQUARE_ACCESS_TOKEN is in code; should be moved to Railway env (e.g. SQUARE_ACCESS_TOKEN).
+
+Frontend (public/index.html)
+- Header: logo, title "Clay and Bean Flow" (word "Flow" in Tangerine font), Live indicator, "N active" count.
+- Order cards in horizontal scroll (#board), newest left. Cards have min-height 350px; footer (Done button) stays at bottom via flex.
+
+Card structure
+- Card header (.card-top): coloured by type — Eat in uses Verdant Earth (--muted), Takeaway uses Mocha Bark (--text/--accent). Header text is Limewash cream (--bg). Contains: customer name (order-name), plain text "Eat in" or "Takeaway" (service-label), optional order note (card-note).
+- Card body (.card-items): line items. Drinks listed first, then a flex spacer (.card-items-spacer) when both drinks and food exist (pushes food + divider toward bottom), then full-bleed divider, then food. Each line: item name (flexes), milk chip (colour-coded: coconut=blue, almond=pink, soy=green, oat=brown, skinny=red), quantity right-aligned. Extra modifiers (e.g. Extra shot, Large) shown below with dash prefix (.mod::before "- "). Line items are clickable to toggle .completed (strikethrough).
+- Card footer: single "Done" button with live timer (e.g. "Just now" / "02:15"). Button: diagonal gradient Verdant Earth → Sage Matcha by default; after 4 minutes gets .late (Roasted Clay). Inset box-shadow on button.
+
+Theme (CSS variables in :root)
+- --bg/--surface: Limewash cream; --surface-alt: Celadon Mist; --border; --text: Mocha Bark; --muted: Verdant Earth; --eat-in: Sage Matcha; --takeaway/--accent: Roasted Clay. Fonts: Funnel Sans (body/UI), Tangerine (title "Flow").
+
+Drink vs food
+- isDrinkItem() treats names containing coffee, latte, flat white, cappuccino, americano, espresso, mocha, macchiato, tea, matcha, chai as drinks. First modifier shown as milk chip (getMilkChipClass). Variation (e.g. Large) and other modifiers go in .item-mods.
+
+Demo data
+- setTimeout injects 7 demo orders (demo-001 … demo-007) with mixed drinks (incl. iced latte/coconut, iced matcha/oat/white chocolate, mocha, chai/extra shot, cortado, espresso) and pastries (pain au chocolat, croissant, savory pain suisse). Remove or disable for production.
+
+Backend (index.js)
+- POST /webhook: 200 immediately; on order.created/order.updated resolves order ID from payload, uses full order if present else fetchOrder(orderId), then io.emit('new-order', order). Server listens on PORT (e.g. Railway).
+
+Use this context to continue work: fix bugs, add features, or refactor; keep Square webhook + Orders API flow and the current UI/UX (card layout, timers, milk chips, Eat in/Takeaway header colours, Done button behaviour) unless the user asks for changes.
