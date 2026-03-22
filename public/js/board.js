@@ -36,7 +36,9 @@ export function renderCard(order) {
   card.id = `card-${order.id}`;
 
   const isEatIn = isEatInOrder(order);
-  const note = order.fulfillments?.[0]?.pickup_details?.note || order.note || '';
+  const rawNote = order.fulfillments?.[0]?.pickup_details?.note || order.note || '';
+  const noteMatch = rawNote.match(/\|\s*Note:\s*(.+)/i);
+  const note = noteMatch ? noteMatch[1].trim() : '';
   const customerName = getCustomerName(order);
 
   const items = order.line_items || [];

@@ -121,9 +121,9 @@
 }
 
 .item-name {
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   color: var(--text);
-  font-weight: 500;
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -132,8 +132,9 @@
 }
 
 .item-qty {
-  font-size: 1.05rem;
-  color: var(--muted);
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text);
   white-space: nowrap;
   text-align: right;
   min-width: 1.5em;
@@ -149,9 +150,10 @@
 }
 
 .mod {
-  font-size: 1rem;
-  color: #6a6a5a;
-  letter-spacing: 0.03em;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.01em;
   display: block;
   white-space: nowrap;
   overflow: hidden;
@@ -159,8 +161,8 @@
 }
 
 .mod::before {
-  content: '- ';
-  color: var(--border);
+  content: '+ ';
+  color: var(--muted);
 }
 
 .line-item.completed .item-name,
@@ -193,7 +195,6 @@
   font-size: 0.82rem;
   color: inherit;
   font-style: italic;
-  min-height: 1.6em;
 }
 
 .card-footer {

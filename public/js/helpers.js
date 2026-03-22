@@ -44,6 +44,9 @@ export function isDrinkItem(item) {
   return [
     'coffee', 'latte', 'flat white', 'cappuccino', 'americano',
     'espresso', 'mocha', 'macchiato', 'tea', 'matcha', 'chai',
+    'long black', 'short black', 'cold brew', 'cortado', 'ristretto',
+    'filter', 'pour over', 'hot chocolate', 'hot choc', 'affogato',
+    'frappe', 'smoothie', 'juice', 'lemonade', 'milk shake', 'milkshake',
   ].some((word) => name.includes(word));
 }
 
