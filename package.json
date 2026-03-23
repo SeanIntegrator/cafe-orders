@@ -13,13 +13,17 @@
   "type": "commonjs",
   "description": "",
   "dependencies": {
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
+    "dotenv": "^16.4.5",
     "express": "^5.2.1",
+    "google-auth-library": "^9.14.0",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.13.0",
     "socket.io": "^4.8.3",
     "square": "^44.0.0"
   },
   "devDependencies": {
-    "dotenv": "^16.4.5",
     "nodemon": "^3.1.14"
   }
 }
