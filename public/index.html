@@ -23,8 +23,7 @@
   <div class="live-dot">Live</div>
   <div class="header-right">
     <span class="order-count" id="order-count">0 active</span>
-    <button type="button" class="demo-btn" id="history-recall-btn" title="Orders saved in the database (customer app &amp; KDS)">Today's orders</button>
-    <button type="button" class="demo-btn" id="create-test-order-btn" title="Create a test order (appears as a new card)">Create test order</button>
+    <button type="button" class="demo-btn" id="history-recall-btn" title="Recent orders from the app (saved here for reference)">Recent orders</button>
   </div>
 </header>
 
@@ -45,29 +44,10 @@
   </div>
 </div>
 
-<div class="modal-overlay hidden" id="order-modal-overlay">
-  <div class="order-modal" id="order-modal">
-    <div class="order-modal-header">
-      <h2>New order</h2>
-      <button type="button" class="order-modal-close" id="order-modal-close" aria-label="Close">&times;</button>
-    </div>
-    <div class="order-modal-body">
-      <div class="order-modal-items" id="order-modal-items"></div>
-      <div class="order-modal-sidebar">
-        <div class="order-modal-sidebar-title">Current order</div>
-        <div class="order-modal-current-list" id="order-modal-current-list"></div>
-        <div class="order-modal-footer">
-          <button type="button" class="order-modal-create-btn" id="order-modal-create-btn" disabled>Create order</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
 <div class="modal-overlay hidden" id="history-modal-overlay">
   <div class="history-modal" id="history-modal" role="dialog" aria-labelledby="history-modal-title" aria-modal="true">
     <div class="history-modal-header">
-      <h2 id="history-modal-title">Saved orders</h2>
+      <h2 id="history-modal-title">Recent orders</h2>
       <button type="button" class="order-modal-close" id="history-modal-close" aria-label="Close">&times;</button>
     </div>
     <div class="history-period-tabs">

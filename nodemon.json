@@ -1,0 +1,5 @@
+{
+  "watch": ["index.js", "routes", "lib", "middleware", "db.js"],
+  "ext": "js,cjs",
+  "ignore": ["node_modules", "public"]
+}

@@ -1,5 +1,5 @@
 /**
- * KDS recall modal — lists persisted orders from GET /api/kds/orders.
+ * KDS — recent orders from GET /api/kds/orders (tablet-friendly, no expand/collapse).
  */
 
 const overlay = document.getElementById('history-modal-overlay');
@@ -19,6 +19,7 @@ function formatWhen(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
   return d.toLocaleString('en-GB', {
+    weekday: 'short',
     day: 'numeric',
     month: 'short',
     hour: '2-digit',
@@ -26,9 +27,28 @@ function formatWhen(iso) {
   });
 }
 
+/** Barista-facing labels (not raw order_source enums). */
+function orderChannelLabel(source) {
+  const s = String(source || '').toLowerCase();
+  if (s === 'web_app') return 'App order';
+  if (s === 'whatsapp') return 'App order';
+  return 'Walk in';
+}
+
+function statusLabel(status) {
+  const s = String(status || '').toLowerCase();
+  if (s === 'confirmed') return 'Confirmed';
+  if (s === 'ready') return 'Ready';
+  if (s === 'completed') return 'Collected';
+  if (s === 'cancelled') return 'Cancelled';
+  if (s === 'pending') return 'Pending';
+  return status ? status.charAt(0).toUpperCase() + status.slice(1) : '—';
+}
+
 function modifierLabel(m) {
   if (m == null) return '';
   if (typeof m === 'string') return m;
+  if (m.kind === 'item_emoji') return '';
   return m.name || m.id || '';
 }
 
@@ -38,39 +58,42 @@ function renderModifiers(mods) {
   return parts.length ? parts.join(', ') : '';
 }
 
-function renderOrder(order) {
-  const expanded = false;
-  const items = order.items || [];
-  const lines = items
-    .map((it) => {
-      const mods = renderModifiers(it.modifiers);
-      const modHtml = mods
-        ? `<div class="history-modifiers">${mods}</div>`
-        : '';
-      return `<li><strong>${it.quantity}×</strong> ${escapeHtml(it.item_name || 'Item')}${modHtml}</li>`;
-    })
-    .join('');
+function lineItemRow(it) {
+  const emoji = it.item_emoji ? `<span class="history-line-emoji" aria-hidden="true">${escapeHtml(it.item_emoji)}</span>` : '';
+  const mods = renderModifiers(it.modifiers);
+  const modHtml = mods ? `<span class="history-line-mods">${escapeHtml(mods)}</span>` : '';
+  return `<li class="history-line-item">
+    ${emoji}
+    <span class="history-line-main"><span class="history-line-qty">${it.quantity}×</span> ${escapeHtml(it.item_name || 'Item')}</span>
+    ${modHtml ? `<span class="history-line-mods-wrap">${modHtml}</span>` : ''}
+  </li>`;
+}
 
-  const notes = order.notes ? `<div class="history-notes">${escapeHtml(order.notes)}</div>` : '';
+function renderOrder(order) {
+  const items = order.items || [];
+  const lines = items.map(lineItemRow).join('');
+  const notes = order.notes
+    ? `<div class="history-notes"><span class="history-notes-label">Note</span> ${escapeHtml(order.notes)}</div>`
+    : '';
+
+  const channel = orderChannelLabel(order.order_source);
+  const stLabel = statusLabel(order.status);
 
   return `
-    <div class="history-order" data-order-id="${order.id}">
-      <button type="button" class="history-order-summary" aria-expanded="${expanded}">
+    <article class="history-order-card">
+      <div class="history-order-top">
         <div class="history-order-meta">
           <div class="history-order-name">${escapeHtml(order.customer_name || 'Customer')}</div>
-          <div class="history-order-sub">${formatWhen(order.created_at)} · ${escapeHtml(order.order_source || '')}</div>
+          <div class="history-order-sub">${formatWhen(order.created_at)} · ${escapeHtml(channel)}</div>
         </div>
         <div class="history-order-right">
-          <span class="badge ${statusBadgeClass(order.status)}">${escapeHtml(order.status || '')}</span>
+          <span class="badge ${statusBadgeClass(order.status)}">${escapeHtml(stLabel)}</span>
           <span class="history-order-total">${formatMoney(order.total_amount)}</span>
         </div>
-      </button>
-      <div class="history-order-details">
-        <div>DB #${order.id}${order.square_order_id ? ` · Square ${escapeHtml(String(order.square_order_id).slice(0, 12))}…` : ''}</div>
-        <ul>${lines || '<li>No line items</li>'}</ul>
-        ${notes}
       </div>
-    </div>
+      <ul class="history-order-lines">${lines || '<li class="history-line-item history-line-empty">No items listed</li>'}</ul>
+      ${notes}
+    </article>
   `;
 }
 
@@ -110,17 +133,10 @@ function setError(msg) {
 function renderList(orders) {
   if (!orders.length) {
     listEl.innerHTML =
-      '<div class="history-empty">No saved orders in this window yet.<br><span style="font-size:0.8rem;opacity:0.85">Orders appear here after checkout from the customer app or KDS test order (Postgres).</span></div>';
+      '<div class="history-empty">No orders in this time range yet.<br><span class="history-empty-hint">Orders from the customer app appear here after checkout.</span></div>';
     return;
   }
   listEl.innerHTML = orders.map(renderOrder).join('');
-  listEl.querySelectorAll('.history-order-summary').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const card = btn.closest('.history-order');
-      const open = card.classList.toggle('expanded');
-      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-    });
-  });
 }
 
 async function loadAndRender() {
@@ -129,7 +145,7 @@ async function loadAndRender() {
     const data = await fetchHistory(currentPeriod);
     renderList(data.orders || []);
   } catch (e) {
-    setError(e.message || 'Could not load history');
+    setError(e.message || 'Could not load orders');
   }
 }
 
@@ -158,7 +174,6 @@ periodButtons.forEach((btn) => {
   });
 });
 
-// Default active tab
 periodButtons.forEach((btn) => {
   if (btn.getAttribute('data-history-period') === 'today') btn.classList.add('active');
 });

@@ -44,7 +44,7 @@ module.exports = function createCatalogRouter(io) {
           note,
           pickupMinutes: pickup_minutes,
           rawLineItems: lineItems,
-          orderSource: req.userId ? 'web_app' : 'kds_test',
+          orderSource: 'web_app',
         });
         if (io) {
           io.emit('orderUpdated', {
@@ -100,9 +100,6 @@ module.exports = function createCatalogRouter(io) {
       res.status(500).json({ ok: false, error: err.message });
     }
   });
-
-  /** Same-origin KDS / test tooling (no session). */
-  router.post('/api/create-order', handleCreateOrder);
 
   /** Customer app: requires Google session JWT. */
   router.post('/api/customer/create-order', requireAuth, handleCreateOrder);

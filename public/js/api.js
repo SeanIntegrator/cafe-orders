@@ -49,6 +49,7 @@ export async function handleDone(id) {
     payload.fulfillments = order.fulfillments;
     payload.state = order.state;
     payload.tenders = order.tenders;
+    if (order.total_money) payload.total_money = order.total_money;
   }
 
   try {
@@ -73,11 +74,3 @@ export async function handleDone(id) {
   }
 }
 
-export async function createOrder(lineItems) {
-  const res = await fetch('/api/create-order', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ line_items: lineItems }),
-  });
-  return res.json().catch(() => ({}));
-}

@@ -5,12 +5,40 @@
 const express = require('express');
 const router = express.Router();
 const square = require('../lib/square');
-const dismissed = require('../lib/dismissed-orders');
+const { pool, markOrderCompletedBySquareId } = require('../lib/orders-db');
+
+function snapshotFromSquareOrder(order) {
+  if (!order) return null;
+  const pickup = order.fulfillments?.[0]?.pickup_details;
+  const name = pickup?.recipient?.display_name || 'Walk-in';
+  const total = order.total_money?.amount;
+  return {
+    customerName: name,
+    totalAmount: typeof total === 'number' ? total : parseInt(total, 10) || 0,
+  };
+}
+
+async function filterOrdersHiddenByDb(squareOrders) {
+  const ids = squareOrders.map((o) => o.id).filter(Boolean);
+  if (ids.length === 0) return squareOrders;
+  try {
+    const { rows } = await pool.query(
+      `SELECT square_order_id FROM orders
+       WHERE square_order_id = ANY($1::text[]) AND status = 'completed'`,
+      [ids]
+    );
+    const done = new Set(rows.map((r) => r.square_order_id));
+    return squareOrders.filter((o) => !done.has(o.id));
+  } catch (e) {
+    console.warn('GET /api/orders: could not filter DB-completed orders:', e.message);
+    return squareOrders;
+  }
+}
 
 router.get('/api/orders', async (req, res) => {
   try {
     let orders = await square.searchOpenOrders();
-    orders = orders.filter((o) => !dismissed.has(o.id));
+    orders = await filterOrdersHiddenByDb(orders);
     res.json({ ok: true, orders });
   } catch (err) {
     if (err.code === 'CONFIG') {
@@ -38,6 +66,7 @@ router.post('/api/orders/:orderId/complete', async (req, res) => {
         fulfillments,
         state: orderState,
         tenders: req.body?.tenders,
+        total_money: req.body?.total_money,
       };
     }
     if (!order) {
@@ -54,16 +83,26 @@ router.post('/api/orders/:orderId/complete', async (req, res) => {
       orderState = order.state;
     }
 
-    if (orderState === 'COMPLETED' || orderState === 'CANCELED') {
+    const snap = snapshotFromSquareOrder(order);
+
+    if (orderState === 'COMPLETED') {
+      await markOrderCompletedBySquareId(orderId, snap).catch((e) =>
+        console.error('markOrderCompletedBySquareId:', e.message)
+      );
+      return res.json({ ok: true, already: true, completed: true });
+    }
+    if (orderState === 'CANCELED') {
       return res.json({ ok: true, already: true, completed: true });
     }
 
     if (!square.isOrderPaid(order)) {
-      dismissed.add(orderId);
+      await markOrderCompletedBySquareId(orderId, snap).catch((e) =>
+        console.error('markOrderCompletedBySquareId:', e.message)
+      );
       return res.json({
         ok: true,
         completed: false,
-        message: 'Removed from board. In sandbox, unpaid orders stay hidden on refresh.',
+        message: 'Order cleared from the board.',
       });
     }
 
@@ -81,6 +120,9 @@ router.post('/api/orders/:orderId/complete', async (req, res) => {
       fulfillments
     );
     if (result.completed) {
+      await markOrderCompletedBySquareId(orderId, snap).catch((e) =>
+        console.error('markOrderCompletedBySquareId:', e.message)
+      );
       return res.json({ ok: true, completed: true });
     }
     return res.status(400).json({
