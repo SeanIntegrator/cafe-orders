@@ -3,6 +3,7 @@
 import { loadModifierCategories, loadLiveOrders } from './api.js';
 import { addOrUpdateOrder, updateTimers } from './board.js';
 import './modal.js'; // registers modal event listeners
+import './history.js'; // Today's orders / recall modal
 
 /* global io */
 const socket = io();

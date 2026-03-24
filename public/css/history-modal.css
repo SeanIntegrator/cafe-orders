@@ -1,0 +1,182 @@
+/* Persisted orders recall (DB) — separate from Square "new order" modal */
+
+#history-modal-overlay {
+  z-index: 200;
+}
+
+.history-modal {
+  width: min(720px, 96vw);
+  max-height: min(85vh, 900px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.history-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.history-modal-header h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.history-period-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 0 20px 12px;
+  flex-shrink: 0;
+}
+
+.history-period-tabs button {
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.history-period-tabs button:hover {
+  color: var(--text);
+  border-color: var(--muted);
+}
+
+.history-period-tabs button.active {
+  color: var(--bg);
+  background: var(--text);
+  border-color: var(--text);
+}
+
+.history-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 16px 20px;
+  min-height: 120px;
+}
+
+.history-loading,
+.history-empty,
+.history-error {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.history-error {
+  color: var(--takeaway);
+}
+
+.history-order {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 10px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.history-order-summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.history-order-summary:hover {
+  background: rgba(131, 132, 114, 0.06);
+}
+
+.history-order-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.history-order-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.history-order-sub {
+  font-size: 0.75rem;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+.history-order-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.history-order-total {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.history-order-details {
+  display: none;
+  padding: 0 14px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.history-order.expanded .history-order-details {
+  display: block;
+}
+
+.history-order-details ul {
+  list-style: none;
+  margin-top: 10px;
+}
+
+.history-order-details li {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+
+.history-order-details li:last-child {
+  border-bottom: none;
+}
+
+.history-modifiers {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.history-notes {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+  font-style: italic;
+}

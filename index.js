@@ -7,7 +7,9 @@ const http = require('http');
 const { Server } = require('socket.io');
 
 const ordersRouter = require('./routes/orders');
-const catalogRouter = require('./routes/catalog');
+const createCatalogRouter = require('./routes/catalog');
+const createCustomerOrdersRouter = require('./routes/customer-orders');
+const createKdsHistoryRouter = require('./routes/kds-history');
 const authRouter = require('./routes/auth');
 const { attachWebhook } = require('./routes/webhook');
 const square = require('./lib/square');
@@ -42,7 +44,9 @@ app.use(express.json());
 
 app.use('/api/auth', authRouter);
 app.use(ordersRouter);
-app.use(catalogRouter);
+app.use(createCatalogRouter(io));
+app.use(createCustomerOrdersRouter(io));
+app.use(createKdsHistoryRouter());
 attachWebhook(app, io);
 
 app.use(express.static('public'));

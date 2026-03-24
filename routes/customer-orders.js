@@ -1,0 +1,140 @@
+/**
+ * Authenticated customer order list, detail, and PATCH (edit while pending/confirmed).
+ */
+
+const express = require('express');
+const pool = require('../db');
+const { requireAuth } = require('../middleware/auth');
+const {
+  fetchOrderForUser,
+  mapOrderRow,
+  updateOrderLineItemsAndMeta,
+} = require('../lib/orders-db');
+
+module.exports = function createCustomerOrdersRouter(io) {
+  const router = express.Router();
+
+  router.get('/api/customer/orders', requireAuth, async (req, res) => {
+    try {
+      const statusQ = req.query.status;
+      const values = [req.userId];
+      let where = 'WHERE user_id = $1';
+      if (statusQ) {
+        const st = statusQ.split(',').map((s) => s.trim()).filter(Boolean);
+        if (st.length) {
+          values.push(st);
+          where += ` AND status = ANY($2::text[])`;
+        }
+      } else {
+        where += ` AND created_at >= NOW() - INTERVAL '30 days'`;
+      }
+
+      const { rows: orders } = await pool.query(
+        `SELECT id, square_order_id, customer_name, notes, total_amount, status, pickup_time, created_at, updated_at
+         FROM orders ${where}
+         ORDER BY created_at DESC
+         LIMIT 40`,
+        values
+      );
+
+      if (orders.length === 0) {
+        return res.json({ ok: true, orders: [] });
+      }
+
+      const ids = orders.map((o) => o.id);
+      const { rows: itemRows } = await pool.query(
+        `SELECT id, order_id, square_variation_id, item_name, item_emoji, quantity, unit_price, modifiers
+         FROM order_items WHERE order_id = ANY($1::int[]) ORDER BY order_id, id`,
+        [ids]
+      );
+
+      const byOrder = {};
+      for (const it of itemRows) {
+        if (!byOrder[it.order_id]) byOrder[it.order_id] = [];
+        byOrder[it.order_id].push({
+          id: it.id,
+          square_variation_id: it.square_variation_id,
+          item_name: it.item_name,
+          item_emoji: it.item_emoji,
+          quantity: it.quantity,
+          unit_price: it.unit_price,
+          modifiers: it.modifiers,
+        });
+      }
+
+      const payload = orders.map((o) => mapOrderRow(o, byOrder[o.id] || []));
+      res.json({ ok: true, orders: payload });
+    } catch (err) {
+      console.error('GET /api/customer/orders error:', err);
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  router.get('/api/customer/orders/:id', requireAuth, async (req, res) => {
+    const orderId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(orderId)) {
+      return res.status(400).json({ ok: false, error: 'Invalid order id' });
+    }
+    try {
+      const full = await fetchOrderForUser(orderId, req.userId);
+      if (!full) {
+        return res.status(404).json({ ok: false, error: 'Order not found' });
+      }
+      const { items, ...row } = full;
+      res.json({ ok: true, order: mapOrderRow(row, items) });
+    } catch (err) {
+      console.error('GET /api/customer/orders/:id error:', err);
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  router.patch('/api/customer/orders/:id', requireAuth, async (req, res) => {
+    const orderId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(orderId)) {
+      return res.status(400).json({ ok: false, error: 'Invalid order id' });
+    }
+    const body = req.body ?? {};
+    if (!Array.isArray(body.line_items) || body.line_items.length === 0) {
+      return res.status(400).json({
+        ok: false,
+        error: 'line_items array required with at least one item',
+      });
+    }
+
+    try {
+      const result = await updateOrderLineItemsAndMeta(orderId, req.userId, {
+        customer_name: body.customer_name,
+        note: body.note,
+        pickup_minutes: body.pickup_minutes,
+        line_items: body.line_items,
+      });
+      if (io) {
+        io.emit('orderUpdated', {
+          type: 'updated',
+          dbOrderId: result.orderId,
+          squareOrderId: result.squareOrderId,
+        });
+      }
+      const full = await fetchOrderForUser(orderId, req.userId);
+      const { items, ...row } = full;
+      res.json({ ok: true, order: mapOrderRow(row, items) });
+    } catch (err) {
+      if (err.code === 'NOT_FOUND') {
+        return res.status(404).json({ ok: false, error: 'Order not found' });
+      }
+      if (err.code === 'FORBIDDEN') {
+        return res.status(403).json({
+          ok: false,
+          error: 'This order can no longer be edited',
+        });
+      }
+      if (err.code === 'VALIDATION') {
+        return res.status(400).json({ ok: false, error: err.message });
+      }
+      console.error('PATCH /api/customer/orders/:id error:', err);
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  return router;
+};

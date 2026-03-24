@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="css/card.css">
   <link rel="stylesheet" href="css/modal.css">
   <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/history-modal.css">
 </head>
 <body>
 
@@ -22,6 +23,7 @@
   <div class="live-dot">Live</div>
   <div class="header-right">
     <span class="order-count" id="order-count">0 active</span>
+    <button type="button" class="demo-btn" id="history-recall-btn" title="Orders saved in the database (customer app &amp; KDS)">Today's orders</button>
     <button type="button" class="demo-btn" id="create-test-order-btn" title="Create a test order (appears as a new card)">Create test order</button>
   </div>
 </header>
@@ -59,6 +61,21 @@
         </div>
       </div>
     </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="history-modal-overlay">
+  <div class="history-modal" id="history-modal" role="dialog" aria-labelledby="history-modal-title" aria-modal="true">
+    <div class="history-modal-header">
+      <h2 id="history-modal-title">Saved orders</h2>
+      <button type="button" class="order-modal-close" id="history-modal-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="history-period-tabs">
+      <button type="button" data-history-period="hour">Last hour</button>
+      <button type="button" data-history-period="today">Today</button>
+      <button type="button" data-history-period="week">This week</button>
+    </div>
+    <div class="history-modal-body" id="history-modal-list"></div>
   </div>
 </div>
 
