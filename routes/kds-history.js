@@ -4,6 +4,7 @@
 
 const express = require('express');
 const pool = require('../db');
+const { mapItemRow } = require('../lib/orders-db');
 
 /** Match RecallContext: barista-facing history (excludes unpaid pending). */
 const KDS_HISTORY_STATUSES = ['confirmed', 'ready', 'completed'];
@@ -46,7 +47,7 @@ module.exports = function createKdsHistoryRouter() {
 
       const ids = orders.map((o) => o.id);
       const { rows: itemRows } = await pool.query(
-        `SELECT id, order_id, square_variation_id, item_name, item_emoji, quantity, unit_price, modifiers
+        `SELECT id, order_id, square_variation_id, item_name, quantity, unit_price, modifiers
          FROM order_items WHERE order_id = ANY($1::int[]) ORDER BY order_id, id`,
         [ids]
       );
@@ -54,15 +55,7 @@ module.exports = function createKdsHistoryRouter() {
       const byOrder = {};
       for (const it of itemRows) {
         if (!byOrder[it.order_id]) byOrder[it.order_id] = [];
-        byOrder[it.order_id].push({
-          id: it.id,
-          square_variation_id: it.square_variation_id,
-          item_name: it.item_name,
-          item_emoji: it.item_emoji,
-          quantity: it.quantity,
-          unit_price: it.unit_price,
-          modifiers: it.modifiers,
-        });
+        byOrder[it.order_id].push(it);
       }
 
       const payload = orders.map((o) => ({
@@ -77,7 +70,7 @@ module.exports = function createKdsHistoryRouter() {
         created_at: o.created_at,
         updated_at: o.updated_at,
         user_id: o.user_id,
-        items: byOrder[o.id] || [],
+        items: (byOrder[o.id] || []).map(mapItemRow),
       }));
 
       res.json({ ok: true, orders: payload, period, since: since.toISOString() });

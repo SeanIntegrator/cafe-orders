@@ -43,7 +43,7 @@ module.exports = function createCustomerOrdersRouter(io) {
 
       const ids = orders.map((o) => o.id);
       const { rows: itemRows } = await pool.query(
-        `SELECT id, order_id, square_variation_id, item_name, item_emoji, quantity, unit_price, modifiers
+        `SELECT id, order_id, square_variation_id, item_name, quantity, unit_price, modifiers
          FROM order_items WHERE order_id = ANY($1::int[]) ORDER BY order_id, id`,
         [ids]
       );
@@ -51,15 +51,7 @@ module.exports = function createCustomerOrdersRouter(io) {
       const byOrder = {};
       for (const it of itemRows) {
         if (!byOrder[it.order_id]) byOrder[it.order_id] = [];
-        byOrder[it.order_id].push({
-          id: it.id,
-          square_variation_id: it.square_variation_id,
-          item_name: it.item_name,
-          item_emoji: it.item_emoji,
-          quantity: it.quantity,
-          unit_price: it.unit_price,
-          modifiers: it.modifiers,
-        });
+        byOrder[it.order_id].push(it);
       }
 
       const payload = orders.map((o) => mapOrderRow(o, byOrder[o.id] || []));
