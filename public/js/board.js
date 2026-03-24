@@ -18,10 +18,24 @@ const boardRows = document.getElementById('board-rows');
 const emptyState = document.getElementById('empty-state');
 const orderCount = document.getElementById('order-count');
 
+export function removeCardSilently(id) {
+  const card = document.getElementById(`card-${id}`);
+  if (card) card.remove();
+  delete orders[id];
+  if (Object.keys(orders).length === 0) {
+    emptyState.style.display = 'flex';
+    boardRows.classList.add('hidden');
+  }
+  updateCount();
+}
+
 export function addOrUpdateOrder(order) {
-  if (orders[order.id]) return; // already showing
+  if (!order?.id) return;
   const isDemo = String(order.id || '').startsWith('demo-');
   if (!isDemo && (order.state === 'COMPLETED' || order.state === 'CANCELED')) return;
+  if (orders[order.id]) {
+    removeCardSilently(order.id);
+  }
   orders[order.id] = { order, createdAt: Date.now() };
   renderCard(order);
   updateCount();

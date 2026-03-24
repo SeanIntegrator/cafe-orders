@@ -21,6 +21,10 @@ socket.on('new-order', (payload) => {
   });
 });
 
+socket.on('orderUpdated', () => {
+  loadLiveOrders(addOrUpdateOrder);
+});
+
 // Toggle completion state when clicking a line item
 document.getElementById('board-container').addEventListener('click', (event) => {
   const line = event.target.closest('.line-item');
