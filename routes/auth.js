@@ -94,7 +94,7 @@ router.get('/me', async (req, res) => {
       req.headers.authorization?.replace(/^Bearer\s+/i, '');
 
     if (!token) {
-      return res.status(401).json({ error: 'Not authenticated' });
+      return res.json({ user: null });
     }
 
     if (!process.env.JWT_SECRET) {

@@ -17,14 +17,19 @@ const square = require('./lib/square');
 const app = express();
 app.set('trust proxy', 1);
 
-const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
+const extraOrigins = String(process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+const allowedOrigins = [...new Set([...extraOrigins, process.env.FRONTEND_URL, 'http://localhost:5173'].filter(Boolean))];
 
-const allowedOrigins = [
-  process.env.FRONTEND_URL,
-  'https://customer-app-production-99e9.up.railway.app',
-  'http://localhost:5173',
-].filter(Boolean);
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: allowedOrigins.length ? allowedOrigins : true,
+    credentials: true,
+  },
+});
 
 app.use(
   cors({
