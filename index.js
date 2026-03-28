@@ -6,10 +6,11 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 
-const ordersRouter = require('./routes/orders');
+const createOrdersRouter = require('./routes/orders');
 const createCatalogRouter = require('./routes/catalog');
 const createCustomerOrdersRouter = require('./routes/customer-orders');
 const createKdsHistoryRouter = require('./routes/kds-history');
+const createFeedbackRouter = require('./routes/feedback');
 const authRouter = require('./routes/auth');
 const { attachWebhook } = require('./routes/webhook');
 const square = require('./lib/square');
@@ -48,10 +49,11 @@ app.use(cookieParser());
 app.use(express.json());
 
 app.use('/api/auth', authRouter);
-app.use(ordersRouter);
+app.use(createOrdersRouter(io));
 app.use(createCatalogRouter(io));
 app.use(createCustomerOrdersRouter(io));
 app.use(createKdsHistoryRouter());
+app.use(createFeedbackRouter());
 attachWebhook(app, io);
 
 app.use(express.static('public'));
