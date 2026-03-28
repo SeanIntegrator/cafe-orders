@@ -17,15 +17,28 @@ module.exports = function createCustomerOrdersRouter(io) {
   router.get('/api/customer/orders', requireAuth, async (req, res) => {
     try {
       const statusQ = req.query.status;
+      const daysQ = req.query.days;
       const values = [req.userId];
       let where = 'WHERE user_id = $1';
+      let paramIdx = 1;
+
       if (statusQ) {
         const st = statusQ.split(',').map((s) => s.trim()).filter(Boolean);
         if (st.length) {
           values.push(st);
-          where += ` AND status = ANY($2::text[])`;
+          paramIdx += 1;
+          where += ` AND status = ANY($${paramIdx}::text[])`;
         }
-      } else {
+      }
+
+      if (daysQ !== undefined && daysQ !== '') {
+        const d = parseInt(String(daysQ), 10);
+        if (Number.isFinite(d) && d > 0 && d <= 730) {
+          values.push(d);
+          paramIdx += 1;
+          where += ` AND created_at >= NOW() - ($${paramIdx}::integer * INTERVAL '1 day')`;
+        }
+      } else if (!statusQ) {
         where += ` AND created_at >= NOW() - INTERVAL '30 days'`;
       }
 

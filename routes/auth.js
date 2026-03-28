@@ -6,6 +6,21 @@ const pool = require('../db');
 const router = express.Router();
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
+async function buildUserResponsePayload(userRow) {
+  const { rows: cnt } = await pool.query(
+    'SELECT COUNT(*)::int AS c FROM orders WHERE user_id = $1',
+    [userRow.id]
+  );
+  return {
+    id: userRow.id,
+    email: userRow.email,
+    displayName: userRow.display_name,
+    avatarUrl: userRow.avatar_url,
+    createdAt: userRow.created_at ? new Date(userRow.created_at).toISOString() : null,
+    orderCount: cnt[0]?.c ?? 0,
+  };
+}
+
 router.post('/google', async (req, res) => {
   try {
     const { credential } = req.body ?? {};
@@ -66,14 +81,11 @@ router.post('/google', async (req, res) => {
       path: '/',
     });
 
+    const payloadUser = await buildUserResponsePayload(user);
+
     return res.json({
       token: sessionToken,
-      user: {
-        id: user.id,
-        email: user.email,
-        displayName: user.display_name,
-        avatarUrl: user.avatar_url,
-      },
+      user: payloadUser,
     });
   } catch (error) {
     console.error('Google auth error:', error);
@@ -94,7 +106,7 @@ router.get('/me', async (req, res) => {
       req.headers.authorization?.replace(/^Bearer\s+/i, '');
 
     if (!token) {
-      return res.status(401).json({ error: 'Not authenticated' });
+      return res.json({ user: null });
     }
 
     if (!process.env.JWT_SECRET) {
@@ -104,7 +116,7 @@ router.get('/me', async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     const { rows } = await pool.query(
-      'SELECT id, email, display_name, avatar_url FROM users WHERE id = $1',
+      'SELECT id, email, display_name, avatar_url, created_at FROM users WHERE id = $1',
       [decoded.userId]
     );
 
@@ -113,14 +125,8 @@ router.get('/me', async (req, res) => {
     }
 
     const user = rows[0];
-    return res.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        displayName: user.display_name,
-        avatarUrl: user.avatar_url,
-      },
-    });
+    const payloadUser = await buildUserResponsePayload(user);
+    return res.json({ user: payloadUser });
   } catch (error) {
     if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
       return res.status(401).json({ error: 'Invalid or expired session' });
