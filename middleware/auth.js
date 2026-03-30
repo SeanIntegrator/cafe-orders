@@ -1,12 +1,9 @@
 const jwt = require('jsonwebtoken');
 
 function getToken(req) {
-  return (
-    req.cookies?.session ||
-    (req.headers.authorization?.startsWith('Bearer ')
-      ? req.headers.authorization.slice(7)
-      : null)
-  );
+  const bearer =
+    req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null;
+  return bearer || req.cookies?.session || null;
 }
 
 function requireAuth(req, res, next) {

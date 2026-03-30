@@ -114,8 +114,9 @@ router.post('/google', async (req, res) => {
 router.get('/me', async (req, res) => {
   try {
     const token =
-      req.cookies?.session ||
-      req.headers.authorization?.replace(/^Bearer\s+/i, '');
+      (req.headers.authorization?.startsWith('Bearer ')
+        ? req.headers.authorization.slice(7)
+        : null) || req.cookies?.session;
 
     if (!token) {
       return res.json({ user: null });
