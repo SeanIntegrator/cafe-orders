@@ -43,7 +43,7 @@ module.exports = function createCustomerOrdersRouter(io) {
       }
 
       const { rows: orders } = await pool.query(
-        `SELECT id, square_order_id, customer_name, notes, total_amount, status, pickup_time, created_at, updated_at
+        `SELECT id, square_order_id, stripe_session_id, customer_name, notes, allergens, total_amount, status, pickup_time, created_at, updated_at
          FROM orders ${where}
          ORDER BY created_at DESC
          LIMIT 40`,
@@ -56,7 +56,7 @@ module.exports = function createCustomerOrdersRouter(io) {
 
       const ids = orders.map((o) => o.id);
       const { rows: itemRows } = await pool.query(
-        `SELECT id, order_id, square_variation_id, item_name, quantity, unit_price, modifiers
+        `SELECT id, order_id, square_variation_id, item_name, quantity, unit_price, modifiers, customer_note
          FROM order_items WHERE order_id = ANY($1::int[]) ORDER BY order_id, id`,
         [ids]
       );
@@ -71,6 +71,33 @@ module.exports = function createCustomerOrdersRouter(io) {
       res.json({ ok: true, orders: payload });
     } catch (err) {
       console.error('GET /api/customer/orders error:', err);
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  router.get('/api/customer/order-by-checkout-session', requireAuth, async (req, res) => {
+    const sessionId = req.query.session_id;
+    if (!sessionId || typeof sessionId !== 'string') {
+      return res.status(400).json({ ok: false, error: 'session_id query required' });
+    }
+    try {
+      const { rows } = await pool.query(
+        `SELECT id, square_order_id, stripe_session_id, customer_name, notes, allergens, total_amount, status, pickup_time, created_at, updated_at
+         FROM orders WHERE stripe_session_id = $1 AND user_id = $2 LIMIT 1`,
+        [sessionId, req.userId]
+      );
+      if (rows.length === 0) {
+        return res.status(404).json({ ok: false, error: 'Order not found' });
+      }
+      const row = rows[0];
+      const { rows: itemRows } = await pool.query(
+        `SELECT id, order_id, square_variation_id, item_name, quantity, unit_price, modifiers, customer_note
+         FROM order_items WHERE order_id = $1 ORDER BY id`,
+        [row.id]
+      );
+      res.json({ ok: true, order: mapOrderRow(row, itemRows) });
+    } catch (err) {
+      console.error('GET /api/customer/order-by-checkout-session error:', err);
       res.status(500).json({ ok: false, error: err.message });
     }
   });
@@ -110,6 +137,7 @@ module.exports = function createCustomerOrdersRouter(io) {
       const result = await updateOrderLineItemsAndMeta(orderId, req.userId, {
         customer_name: body.customer_name,
         note: body.note,
+        allergens: body.allergens,
         pickup_minutes: body.pickup_minutes,
         line_items: body.line_items,
       });

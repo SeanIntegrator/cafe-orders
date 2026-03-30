@@ -30,7 +30,7 @@ module.exports = function createKdsHistoryRouter() {
 
     try {
       const { rows: orders } = await pool.query(
-        `SELECT id, square_order_id, customer_name, notes, total_amount, status, order_source,
+        `SELECT id, square_order_id, customer_name, notes, allergens, total_amount, status, order_source,
                 pickup_time, created_at, updated_at, user_id
          FROM orders
          WHERE cafe_id = $1
@@ -47,7 +47,7 @@ module.exports = function createKdsHistoryRouter() {
 
       const ids = orders.map((o) => o.id);
       const { rows: itemRows } = await pool.query(
-        `SELECT id, order_id, square_variation_id, item_name, quantity, unit_price, modifiers
+        `SELECT id, order_id, square_variation_id, item_name, quantity, unit_price, modifiers, customer_note
          FROM order_items WHERE order_id = ANY($1::int[]) ORDER BY order_id, id`,
         [ids]
       );
@@ -63,6 +63,7 @@ module.exports = function createKdsHistoryRouter() {
         square_order_id: o.square_order_id,
         customer_name: o.customer_name,
         notes: o.notes,
+        allergens: o.allergens,
         total_amount: o.total_amount,
         status: o.status,
         order_source: o.order_source,

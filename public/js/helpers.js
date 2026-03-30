@@ -1,5 +1,14 @@
 /** Pure utility functions — no DOM, no side-effects. */
 
+export function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 export function isEatInOrder(order) {
   const fulfillment = order.fulfillments?.[0];
   if (!fulfillment) return true; // default eat-in for café

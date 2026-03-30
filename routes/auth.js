@@ -6,6 +6,18 @@ const pool = require('../db');
 const router = express.Router();
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
+/**
+ * Customer app (e.g. *.up.railway.app) and API (another *.up.railway.app) are cross-site.
+ * SameSite=Lax cookies are not sent on credentialed fetch — use None+Secure in production.
+ */
+function sessionCookieOptions() {
+  const prod = process.env.NODE_ENV === 'production';
+  if (prod) {
+    return { httpOnly: true, secure: true, sameSite: 'none', path: '/', maxAge: 7 * 24 * 60 * 60 * 1000 };
+  }
+  return { httpOnly: true, secure: false, sameSite: 'lax', path: '/', maxAge: 7 * 24 * 60 * 60 * 1000 };
+}
+
 async function buildUserResponsePayload(userRow) {
   const { rows: cnt } = await pool.query(
     'SELECT COUNT(*)::int AS c FROM orders WHERE user_id = $1',
@@ -137,11 +149,12 @@ router.get('/me', async (req, res) => {
 });
 
 router.post('/logout', (req, res) => {
+  const o = sessionCookieOptions();
   res.clearCookie('session', {
-    path: '/',
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    path: o.path,
+    httpOnly: o.httpOnly,
+    sameSite: o.sameSite,
+    secure: o.secure,
   });
   return res.json({ success: true });
 });

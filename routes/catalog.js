@@ -5,13 +5,21 @@
 const express = require('express');
 const square = require('../lib/square');
 const { requireAuth } = require('../middleware/auth');
-const { persistOrderFromCheckout } = require('../lib/orders-db');
+const { persistOrderFromCheckout, normalizeAllergensInput } = require('../lib/orders-db');
+
+function squarePickupNoteFromAllergens(allergensArr) {
+  const a = normalizeAllergensInput(allergensArr);
+  if (a.length === 0) return '';
+  const joined = a.join(', ');
+  const cap = 450;
+  return joined.length > cap ? `Allergens: ${joined.slice(0, cap - 20)}…` : `Allergens: ${joined}`;
+}
 
 module.exports = function createCatalogRouter(io) {
   const router = express.Router();
 
   async function handleCreateOrder(req, res) {
-    const { line_items: lineItems, customer_name, note, pickup_minutes } = req.body ?? {};
+    const { line_items: lineItems, customer_name, pickup_minutes, allergens } = req.body ?? {};
     if (!Array.isArray(lineItems) || lineItems.length === 0) {
       return res.status(400).json({
         ok: false,
@@ -27,9 +35,11 @@ module.exports = function createCatalogRouter(io) {
         catalog_object_id: li.catalog_object_id,
         quantity: String(li.quantity || 1),
       }));
+      const allergensNorm = normalizeAllergensInput(allergens);
+      const squareNote = squarePickupNoteFromAllergens(allergensNorm);
       const result = await square.createOrder(locationId, orderLineItems, {
         customerName: customer_name,
-        note,
+        note: squareNote,
         pickupMinutes: pickup_minutes,
       });
       if (result.error) {
@@ -41,7 +51,8 @@ module.exports = function createCatalogRouter(io) {
           squareOrderId: result.orderId,
           userId: req.userId || null,
           customerName: customer_name || 'Walk-in',
-          note,
+          notes: null,
+          allergens: allergensNorm,
           pickupMinutes: pickup_minutes,
           rawLineItems: lineItems,
           orderSource: 'web_app',

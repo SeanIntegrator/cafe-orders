@@ -9,6 +9,7 @@ import {
   isDrinkItem,
   getOrderReadyAt,
   getEtaLabelText,
+  escapeHtml,
 } from './helpers.js';
 import { handleDone } from './api.js';
 
@@ -51,8 +52,9 @@ export function renderCard(order) {
 
   const isEatIn = isEatInOrder(order);
   const rawNote = order.fulfillments?.[0]?.pickup_details?.note || order.note || '';
-  const noteMatch = rawNote.match(/\|\s*Note:\s*(.+)/i);
-  const note = noteMatch ? noteMatch[1].trim() : '';
+  const webAllergens = Array.isArray(order.web_app_allergens) ? order.web_app_allergens : [];
+  const legacyBaristaNote =
+    webAllergens.length === 0 ? rawNote.match(/\|\s*Note:\s*(.+)/i)?.[1]?.trim() || '' : '';
   const customerName = getCustomerName(order);
 
   const items = order.line_items || [];
@@ -71,16 +73,21 @@ export function renderCard(order) {
       extraMods.unshift(item.variation_name);
     }
     const milkClass = milk ? getMilkChipClass(milk) : '';
+    const custNote =
+      item.customer_note != null && String(item.customer_note).trim()
+        ? `<div class="item-customer-note">${escapeHtml(String(item.customer_note).trim())}</div>`
+        : '';
     return `
       <div class="line-item">
         <div class="line-item-main">
           <div class="item-main-left">
-            <span class="item-name">${item.name || 'Item'}</span>
-            ${milk ? `<span class="milk-chip ${milkClass}">${milk}</span>` : ''}
+            <span class="item-name">${escapeHtml(item.name || 'Item')}</span>
+            ${milk ? `<span class="milk-chip ${milkClass}">${escapeHtml(milk)}</span>` : ''}
           </div>
           <span class="item-qty">×${item.quantity || 1}</span>
         </div>
-        ${extraMods.length ? `<div class="item-mods">${extraMods.map((m) => `<span class="mod">${m}</span>`).join('')}</div>` : ''}
+        ${custNote}
+        ${extraMods.length ? `<div class="item-mods">${extraMods.map((m) => `<span class="mod">${escapeHtml(m)}</span>`).join('')}</div>` : ''}
       </div>`;
   }
 
@@ -95,13 +102,31 @@ export function renderCard(order) {
   const hasEta = !isEatIn && getOrderReadyAt(order) != null;
   const etaLabel = getEtaLabelText(order);
 
+  const hasAllergens = webAllergens.length > 0;
+  const allergenHtml = hasAllergens
+    ? `<div class="card-allergens">${webAllergens.map((a) => `<span class="allergen-chip">${escapeHtml(a)}</span>`).join('')}</div>`
+    : '';
+  const legacyNoteHtml =
+    !hasAllergens && legacyBaristaNote
+      ? `<div class="card-note">${escapeHtml(legacyBaristaNote)}</div>`
+      : '';
+
+  const topClass = [
+    'card-top',
+    isEatIn ? 'card-top--eat-in' : 'card-top--takeaway',
+    hasAllergens ? 'card-top--allergen-alert' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   card.innerHTML = `
-    <div class="card-top ${isEatIn ? 'card-top--eat-in' : 'card-top--takeaway'}">
+    <div class="${topClass}">
       <div class="card-badges">
-        <span class="order-name">${customerName}</span>
-        <span class="service-label" id="eta-label-${order.id}" data-has-eta="${hasEta ? '1' : ''}">${etaLabel}</span>
+        <span class="order-name">${escapeHtml(customerName)}</span>
+        <span class="service-label" id="eta-label-${order.id}" data-has-eta="${hasEta ? '1' : ''}">${escapeHtml(etaLabel)}</span>
       </div>
-      <div class="card-note">${note}</div>
+      ${allergenHtml}
+      ${legacyNoteHtml}
     </div>
     <div class="card-items">
       ${itemsHtml || '<div style="color:#555;font-size:0.8rem">No items</div>'}

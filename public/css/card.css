@@ -44,6 +44,31 @@
   color: var(--bg);
 }
 
+.card-top--allergen-alert {
+  box-shadow: inset 0 0 0 4px var(--unpaid, #c44);
+}
+
+.card-allergens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 2px;
+}
+
+.allergen-chip {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  color: inherit;
+  max-width: 100%;
+  word-break: break-word;
+}
+
 .card-badges {
   display: flex;
   justify-content: space-between;
@@ -124,11 +149,24 @@
   font-size: 1.15rem;
   color: var(--text);
   font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   flex: 1;
   min-width: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.2;
+}
+
+.item-customer-note {
+  font-size: 0.88rem;
+  font-style: italic;
+  color: var(--text);
+  opacity: 0.92;
+  padding-left: 2px;
+  margin-top: 2px;
+  line-height: 1.25;
+  word-break: break-word;
 }
 
 .item-qty {
@@ -168,7 +206,8 @@
 .line-item.completed .item-name,
 .line-item.completed .item-qty,
 .line-item.completed .mod,
-.line-item.completed .milk-chip {
+.line-item.completed .milk-chip,
+.line-item.completed .item-customer-note {
   text-decoration: line-through;
   opacity: 0.45;
 }

@@ -13,16 +13,41 @@ const createKdsHistoryRouter = require('./routes/kds-history');
 const createFeedbackRouter = require('./routes/feedback');
 const authRouter = require('./routes/auth');
 const { attachWebhook } = require('./routes/webhook');
+const { createCheckoutRouter, createWebhookHandler } = require('./routes/stripe');
 const square = require('./lib/square');
 
 const app = express();
 app.set('trust proxy', 1);
 
+/** Normalize to origin string exactly as browsers send (scheme + host, no path, no trailing slash). */
+function normalizeCorsOrigin(raw) {
+  let s = String(raw ?? '').trim();
+  if (!s) return null;
+  if (!/^https?:\/\//i.test(s)) {
+    s = `https://${s}`;
+  }
+  try {
+    const u = new URL(s);
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    return null;
+  }
+}
+
 const extraOrigins = String(process.env.ALLOWED_ORIGINS || '')
   .split(',')
-  .map((s) => s.trim())
+  .map((s) => normalizeCorsOrigin(s))
   .filter(Boolean);
-const allowedOrigins = [...new Set([...extraOrigins, process.env.FRONTEND_URL, 'http://localhost:5173'].filter(Boolean))];
+const allowedOrigins = [
+  ...new Set(
+    [
+      ...extraOrigins,
+      normalizeCorsOrigin(process.env.FRONTEND_URL),
+      normalizeCorsOrigin('http://localhost:5173'),
+      normalizeCorsOrigin('http://127.0.0.1:5173'),
+    ].filter(Boolean)
+  ),
+];
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -46,6 +71,11 @@ app.use(
 );
 
 app.use(cookieParser());
+app.post(
+  '/api/stripe/webhook',
+  express.raw({ type: 'application/json' }),
+  createWebhookHandler(io)
+);
 app.use(express.json());
 
 app.use('/api/auth', authRouter);
@@ -54,6 +84,7 @@ app.use(createCatalogRouter(io));
 app.use(createCustomerOrdersRouter(io));
 app.use(createKdsHistoryRouter());
 app.use(createFeedbackRouter());
+app.use('/api/stripe', createCheckoutRouter());
 attachWebhook(app, io);
 
 app.use(express.static('public'));
@@ -69,4 +100,7 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log('Server running on port', PORT);
   console.log('Square API:', square.SQUARE_BASE_URL, `(env: ${square.SQUARE_ENV})`);
+  if (allowedOrigins.length) {
+    console.log('CORS allowed origins:', allowedOrigins.join(', '));
+  }
 });
