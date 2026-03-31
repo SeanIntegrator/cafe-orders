@@ -13,6 +13,11 @@ const {
   fetchOrderRowForUser,
   pickupAllowsModification,
 } = require('../lib/orders-db');
+const {
+  getLoyaltyCardForUser,
+  getLastStampDate,
+  loyaltyConfig,
+} = require('../lib/loyalty');
 
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -252,6 +257,64 @@ module.exports = function createCustomerOrdersRouter(io) {
       res.json({ ok: true, order: mapOrderRow(row, items) });
     } catch (err) {
       console.error('GET /api/customer/orders/:id error:', err);
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  router.get('/api/customer/loyalty', requireAuth, async (req, res) => {
+    try {
+      const cfg = loyaltyConfig();
+      const card = await getLoyaltyCardForUser(req.userId, 1);
+      const lastStamp = await getLastStampDate(req.userId, 1);
+      const stamps = card.stamps_count;
+      const per = cfg.stampsPerReward;
+      const stampsToNext = Math.max(0, per - stamps);
+      res.json({
+        ok: true,
+        stamps_count: stamps,
+        rewards_available: card.rewards_available,
+        stamps_to_next_reward: stampsToNext,
+        last_stamp_date: lastStamp ? new Date(lastStamp).toISOString() : null,
+      });
+    } catch (err) {
+      console.error('GET /api/customer/loyalty error:', err);
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  router.get('/api/customer/rewards', requireAuth, async (req, res) => {
+    try {
+      const cfg = loyaltyConfig();
+      const card = await getLoyaltyCardForUser(req.userId, 1);
+      const n = Math.max(0, Number(card.rewards_available) || 0);
+      const maxVal = cfg.rewardMaxPence;
+      const available = Array.from({ length: n }, (_, i) => ({
+        id: `reward_${i + 1}`,
+        type: 'free_drink',
+        value: maxVal,
+        max_value: maxVal,
+        expires_at: null,
+      }));
+
+      const { rows: redRows } = await pool.query(
+        `SELECT t.created_at, t.order_id, COALESCE(o.loyalty_discount_pence, 0)::int AS discount_amount
+         FROM loyalty_transactions t
+         LEFT JOIN orders o ON o.id = t.order_id
+         WHERE t.user_id = $1 AND t.transaction_type = 'reward_redeemed'
+         ORDER BY t.created_at DESC
+         LIMIT 25`,
+        [req.userId]
+      );
+
+      const recent_redemptions = redRows.map((r) => ({
+        redeemed_at: r.created_at ? new Date(r.created_at).toISOString() : null,
+        order_id: r.order_id != null ? String(r.order_id) : null,
+        discount_amount: Number(r.discount_amount) || 0,
+      }));
+
+      res.json({ ok: true, available, recent_redemptions });
+    } catch (err) {
+      console.error('GET /api/customer/rewards error:', err);
       res.status(500).json({ ok: false, error: err.message });
     }
   });

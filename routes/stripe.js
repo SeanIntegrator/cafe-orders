@@ -20,6 +20,11 @@ const {
   fetchOrderRowForUser,
   pickupAllowsModification,
 } = require('../lib/orders-db');
+const {
+  computeFreeDrinkRewardDiscountPence,
+  assertRewardAvailable,
+  loyaltyConfig,
+} = require('../lib/loyalty');
 
 function squarePickupNoteFromAllergens(allergensArr) {
   const a = normalizeAllergensInput(allergensArr);
@@ -89,7 +94,9 @@ function createCheckoutRouter() {
       pickup_minutes: pickupMinutes,
       notes,
       allergens,
+      apply_reward: applyRewardRaw,
     } = req.body ?? {};
+    const applyReward = Boolean(applyRewardRaw);
 
     if (!Array.isArray(lineItems) || lineItems.length === 0) {
       return res.status(400).json({
@@ -120,9 +127,43 @@ function createCheckoutRouter() {
         throw e;
       }
 
-      const totalAmount = totalSmallestUnit(enriched);
-      if (totalAmount <= 0) {
+      const subtotal = totalSmallestUnit(enriched);
+      if (subtotal <= 0) {
         return res.status(400).json({ ok: false, error: 'Order total must be greater than zero' });
+      }
+
+      const lcfg = loyaltyConfig();
+      let loyaltyDiscountPence = 0;
+      if (applyReward) {
+        try {
+          await assertRewardAvailable(req.userId, 1);
+        } catch (e) {
+          if (e.code === 'NO_REWARD') {
+            return res.status(400).json({ ok: false, error: 'No rewards available to redeem' });
+          }
+          throw e;
+        }
+        const varById = new Map(catalogItems.map((i) => [i.id, i]));
+        const { discountPence, eligible } = computeFreeDrinkRewardDiscountPence(
+          enriched,
+          varById,
+          lcfg.rewardMaxPence
+        );
+        if (!eligible || discountPence <= 0) {
+          return res.status(400).json({
+            ok: false,
+            error: 'Add a drink to your basket to use a free drink reward',
+          });
+        }
+        loyaltyDiscountPence = discountPence;
+      }
+
+      const totalAmount = Math.max(0, subtotal - loyaltyDiscountPence);
+      if (totalAmount < lcfg.stripeMinAmountPence) {
+        return res.status(400).json({
+          ok: false,
+          error: `Order total after reward must be at least £${(lcfg.stripeMinAmountPence / 100).toFixed(2)}`,
+        });
       }
 
       const pendingId = await insertPendingOrder({
@@ -133,6 +174,8 @@ function createCheckoutRouter() {
         notes: notes != null ? String(notes).slice(0, 2000) : null,
         allergens: allergens ?? [],
         totalAmount,
+        applyReward,
+        loyaltyDiscountPence,
       });
 
       const stripe = getStripeClient();
@@ -180,7 +223,14 @@ function createCheckoutRouter() {
       return res.status(500).json({ ok: false, error: 'FRONTEND_URL is not configured' });
     }
 
-    const { order_id: orderIdRaw, additional_line_items: lineItems } = req.body ?? {};
+    const { order_id: orderIdRaw, additional_line_items: lineItems, apply_reward: applyRewardRaw } =
+      req.body ?? {};
+    if (Boolean(applyRewardRaw)) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Rewards cannot be applied when adding items to an existing order',
+      });
+    }
     const orderId = parseInt(String(orderIdRaw), 10);
     if (!Number.isFinite(orderId)) {
       return res.status(400).json({ ok: false, error: 'order_id required' });
@@ -482,6 +532,8 @@ async function handleCheckoutSessionCompleted(io, session) {
         stripeSessionId: sessionId,
         pendingOrderId: pendingId,
         paymentSessionEntry: paymentEntry,
+        loyaltyDiscountPence: Number(pending.loyalty_discount_pence) || 0,
+        applyReward: Boolean(pending.apply_reward),
       });
       dbOrderId = out.dbOrderId;
     } catch (insErr) {

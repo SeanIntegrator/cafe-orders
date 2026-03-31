@@ -7,6 +7,13 @@ const square = require('../lib/square');
 const pool = require('../db');
 const { markOrderCompletedBySquareId } = require('../lib/orders-db');
 const { mergeOpenOrdersWithWebAppDb } = require('../lib/kds-merge');
+const { stampCardForCompletedSquareOrder } = require('../lib/loyalty');
+
+function triggerLoyaltyStamp(squareOrderId) {
+  stampCardForCompletedSquareOrder(squareOrderId).catch((e) =>
+    console.error('stampCardForCompletedSquareOrder:', e.message || e)
+  );
+}
 
 function snapshotFromSquareOrder(order) {
   if (!order) return null;
@@ -97,6 +104,7 @@ module.exports = function createOrdersRouter(io) {
           console.error('markOrderCompletedBySquareId:', e.message);
         }
         await notifyCustomerOrderCompleted(io, orderId);
+        triggerLoyaltyStamp(orderId);
         return res.json({ ok: true, already: true, completed: true });
       }
       if (orderState === 'CANCELED') {
@@ -110,6 +118,7 @@ module.exports = function createOrdersRouter(io) {
           console.error('markOrderCompletedBySquareId:', e.message);
         }
         await notifyCustomerOrderCompleted(io, orderId);
+        triggerLoyaltyStamp(orderId);
         return res.json({
           ok: true,
           completed: false,
@@ -137,6 +146,7 @@ module.exports = function createOrdersRouter(io) {
           console.error('markOrderCompletedBySquareId:', e.message);
         }
         await notifyCustomerOrderCompleted(io, orderId);
+        triggerLoyaltyStamp(orderId);
         return res.json({ ok: true, completed: true });
       }
       return res.status(400).json({
