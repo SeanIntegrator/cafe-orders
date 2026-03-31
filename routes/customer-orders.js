@@ -297,7 +297,13 @@ module.exports = function createCustomerOrdersRouter(io) {
       }));
 
       const { rows: redRows } = await pool.query(
-        `SELECT t.created_at, t.order_id, COALESCE(o.loyalty_discount_pence, 0)::int AS discount_amount
+        `SELECT t.created_at, t.order_id, COALESCE(o.loyalty_discount_pence, 0)::int AS discount_amount,
+           (
+             SELECT oi.item_name FROM order_items oi
+             WHERE oi.order_id = o.id
+             ORDER BY oi.id ASC
+             LIMIT 1
+           ) AS item_name
          FROM loyalty_transactions t
          LEFT JOIN orders o ON o.id = t.order_id
          WHERE t.user_id = $1 AND t.transaction_type = 'reward_redeemed'
@@ -310,6 +316,7 @@ module.exports = function createCustomerOrdersRouter(io) {
         redeemed_at: r.created_at ? new Date(r.created_at).toISOString() : null,
         order_id: r.order_id != null ? String(r.order_id) : null,
         discount_amount: Number(r.discount_amount) || 0,
+        item_name: r.item_name || null,
       }));
 
       res.json({ ok: true, available, recent_redemptions });
