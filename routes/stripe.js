@@ -14,7 +14,11 @@ const {
   fetchPendingOrderById,
   findOrderIdByStripeSessionId,
   persistStripePaidOrderInClient,
+  persistIncrementalPaidOrderInClient,
   normalizeAllergensInput,
+  paymentSessionsInclude,
+  fetchOrderRowForUser,
+  pickupAllowsModification,
 } = require('../lib/orders-db');
 
 function squarePickupNoteFromAllergens(allergensArr) {
@@ -47,6 +51,23 @@ function resolveFrontendBaseUrl() {
     raw = `https://${raw}`;
   }
   return raw.replace(/\/$/, '');
+}
+
+function paymentIntentIdFromSession(session) {
+  const pi = session.payment_intent;
+  if (typeof pi === 'string') return pi;
+  if (pi && typeof pi === 'object' && pi.id) return pi.id;
+  return null;
+}
+
+function buildPaymentSessionEntry(session, type) {
+  return {
+    session_id: session.id,
+    payment_intent_id: paymentIntentIdFromSession(session),
+    amount: session.amount_total != null ? Number(session.amount_total) : 0,
+    timestamp: new Date().toISOString(),
+    type,
+  };
 }
 
 function createCheckoutRouter() {
@@ -153,7 +174,341 @@ function createCheckoutRouter() {
     }
   });
 
+  router.post('/create-incremental-checkout', requireAuth, async (req, res) => {
+    const frontendUrl = resolveFrontendBaseUrl();
+    if (!frontendUrl) {
+      return res.status(500).json({ ok: false, error: 'FRONTEND_URL is not configured' });
+    }
+
+    const { order_id: orderIdRaw, additional_line_items: lineItems } = req.body ?? {};
+    const orderId = parseInt(String(orderIdRaw), 10);
+    if (!Number.isFinite(orderId)) {
+      return res.status(400).json({ ok: false, error: 'order_id required' });
+    }
+    if (!Array.isArray(lineItems) || lineItems.length === 0) {
+      return res.status(400).json({ ok: false, error: 'additional_line_items must be a non-empty array' });
+    }
+
+    try {
+      const parent = await fetchOrderRowForUser(orderId, req.userId);
+      if (!parent) {
+        return res.status(404).json({ ok: false, error: 'Order not found' });
+      }
+      if (!['pending', 'confirmed'].includes(parent.status)) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Cannot modify order',
+          reason: 'order_not_modifiable',
+        });
+      }
+      if (!parent.square_order_id) {
+        return res.status(400).json({ ok: false, error: 'Order has no Square ticket' });
+      }
+      if (!pickupAllowsModification(parent.pickup_time)) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Cannot modify order',
+          reason: 'too_close_to_pickup',
+        });
+      }
+
+      const [catalogItems, modifierCategories] = await Promise.all([
+        square.listCatalogItems(),
+        square.listModifierCategories(),
+      ]);
+
+      let enriched;
+      try {
+        enriched = enrichLineItemsForCheckout(lineItems, catalogItems, modifierCategories);
+      } catch (e) {
+        if (e.code === 'CATALOG') {
+          return res.status(400).json({ ok: false, error: e.message });
+        }
+        throw e;
+      }
+
+      const deltaAmount = totalSmallestUnit(enriched);
+      if (deltaAmount <= 0) {
+        return res.status(400).json({ ok: false, error: 'Additional total must be greater than zero' });
+      }
+
+      const originalTotal = Number(parent.total_amount) || 0;
+      const newTotal = originalTotal + deltaAmount;
+
+      const pendingId = await insertPendingOrder({
+        userId: req.userId,
+        lineItems: enriched,
+        customerName: String(parent.customer_name || 'Customer').slice(0, 255),
+        pickupMinutes: 0,
+        notes: null,
+        allergens: parent.allergens ?? [],
+        totalAmount: deltaAmount,
+        originalOrderId: orderId,
+        isIncremental: true,
+      });
+
+      const stripe = getStripeClient();
+      const session = await stripe.checkout.sessions.create({
+        mode: 'payment',
+        line_items: [
+          {
+            price_data: {
+              currency: checkoutCurrency(),
+              product_data: {
+                name: `Add to order #${orderId}`,
+              },
+              unit_amount: deltaAmount,
+            },
+            quantity: 1,
+          },
+        ],
+        success_url: `${frontendUrl.replace(/\/$/, '')}/order/success?session_id={CHECKOUT_SESSION_ID}&incremental=1`,
+        cancel_url: `${frontendUrl.replace(/\/$/, '')}/order/cancelled`,
+        metadata: {
+          pending_order_id: String(pendingId),
+          original_order_id: String(orderId),
+          user_id: String(req.userId),
+          incremental: 'true',
+        },
+      });
+
+      await updatePendingOrderSessionId(pendingId, session.id);
+
+      return res.json({
+        ok: true,
+        sessionId: session.id,
+        url: session.url,
+        difference: deltaAmount,
+        original_total: originalTotal,
+        new_total: newTotal,
+      });
+    } catch (err) {
+      if (err.code === 'CONFIG') {
+        return res.status(500).json({ ok: false, error: err.message });
+      }
+      console.error('create-incremental-checkout:', err);
+      return res.status(500).json({ ok: false, error: err.message || 'Checkout failed' });
+    }
+  });
+
   return router;
+}
+
+async function handleCheckoutSessionCompleted(io, session) {
+  const sessionId = session.id;
+  const meta = session.metadata || {};
+  const isIncremental = meta.incremental === 'true' && meta.original_order_id;
+
+  if (isIncremental) {
+    const originalOrderId = parseInt(String(meta.original_order_id), 10);
+    const pendingId = meta.pending_order_id;
+    if (!Number.isFinite(originalOrderId) || !pendingId) {
+      console.error('Stripe webhook incremental: bad metadata');
+      return { status: 400, body: 'Bad metadata' };
+    }
+
+    const parentEarly = await fetchOrderRowForUser(originalOrderId, meta.user_id);
+    if (!parentEarly) {
+      return { status: 404, body: 'Order not found' };
+    }
+    if (paymentSessionsInclude(parentEarly.payment_sessions, sessionId)) {
+      return { status: 200, json: { received: true } };
+    }
+
+    const pending = await fetchPendingOrderById(pendingId);
+    if (!pending || !pending.is_incremental || Number(pending.original_order_id) !== originalOrderId) {
+      console.error('Stripe webhook incremental: pending missing or mismatch');
+      return { status: 404, body: 'Pending order not found' };
+    }
+
+    let enriched = pending.line_items;
+    if (typeof enriched === 'string') enriched = JSON.parse(enriched);
+
+    const sessionTotal = session.amount_total != null ? Number(session.amount_total) : null;
+    if (sessionTotal != null && sessionTotal !== Number(pending.total_amount)) {
+      console.error('Stripe webhook incremental: amount mismatch', sessionTotal, pending.total_amount);
+      return { status: 400, body: 'Amount mismatch' };
+    }
+
+    if (!parentEarly.square_order_id) {
+      return { status: 500, body: 'Parent order missing Square id' };
+    }
+
+    const sqAppend = await square.appendLineItemsToOrder(
+      parentEarly.square_order_id,
+      enriched,
+      `stripe-incr-${sessionId}`
+    );
+    if (sqAppend.error) {
+      console.error('Stripe webhook incremental: Square failed:', sqAppend.error);
+      return { status: 500, body: 'Square order failed' };
+    }
+
+    const paymentEntry = buildPaymentSessionEntry(session, 'incremental');
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+      const { rows: lockRows } = await client.query(
+        `SELECT id, payment_sessions FROM orders WHERE id = $1 FOR UPDATE`,
+        [originalOrderId]
+      );
+      if (lockRows.length === 0) {
+        await client.query('ROLLBACK');
+        return { status: 404, body: 'Order not found' };
+      }
+      if (paymentSessionsInclude(lockRows[0].payment_sessions, sessionId)) {
+        await client.query('ROLLBACK');
+        return { status: 200, json: { received: true } };
+      }
+
+      try {
+        await persistIncrementalPaidOrderInClient(client, {
+          parentOrderId: originalOrderId,
+          enrichedLineItems: enriched,
+          paymentSessionEntry: paymentEntry,
+          pendingOrderId: pendingId,
+        });
+      } catch (insErr) {
+        if (insErr.code === '23505') {
+          await client.query('ROLLBACK');
+          return { status: 200, json: { received: true } };
+        }
+        throw insErr;
+      }
+      await client.query('COMMIT');
+
+      if (io) {
+        io.emit('orderUpdated', {
+          type: 'items_added',
+          dbOrderId: originalOrderId,
+          squareOrderId: parentEarly.square_order_id,
+        });
+      }
+    } catch (dbErr) {
+      await client.query('ROLLBACK');
+      console.error('Stripe webhook incremental DB:', dbErr);
+      return { status: 500, body: 'Database error' };
+    } finally {
+      client.release();
+    }
+
+    return { status: 200, json: { received: true } };
+  }
+
+  const existing = await findOrderIdByStripeSessionId(sessionId);
+  if (existing != null) {
+    return { status: 200, json: { received: true } };
+  }
+
+  const pendingId = meta.pending_order_id;
+  if (!pendingId) {
+    console.error('Stripe webhook: missing pending_order_id in metadata');
+    return { status: 400, body: 'Missing metadata' };
+  }
+
+  const pending = await fetchPendingOrderById(pendingId);
+  if (!pending) {
+    const again = await findOrderIdByStripeSessionId(sessionId);
+    if (again != null) return { status: 200, json: { received: true } };
+    console.error('Stripe webhook: pending order not found', pendingId);
+    return { status: 404, body: 'Pending order not found' };
+  }
+
+  if (pending.is_incremental) {
+    return { status: 400, body: 'Use incremental handler' };
+  }
+
+  let enriched = pending.line_items;
+  if (typeof enriched === 'string') {
+    enriched = JSON.parse(enriched);
+  }
+
+  const sessionTotal = session.amount_total != null ? Number(session.amount_total) : null;
+  if (sessionTotal != null && sessionTotal !== Number(pending.total_amount)) {
+    console.error('Stripe webhook: amount mismatch', sessionTotal, pending.total_amount);
+    return { status: 400, body: 'Amount mismatch' };
+  }
+
+  const locationId = await square.getLocationId();
+  if (!locationId) {
+    console.error('Stripe webhook: no Square location');
+    return { status: 500, body: 'Square not configured' };
+  }
+
+  const allergensNorm = normalizeAllergensInput(pending.allergens);
+  const squareNote = squarePickupNoteFromAllergens(allergensNorm);
+
+  const squareLineItems = enriched.map((li) => ({
+    catalog_object_id: li.catalog_object_id,
+    quantity: li.quantity,
+    square_modifier_ids: li.square_modifier_ids,
+  }));
+
+  const result = await square.createOrder(locationId, squareLineItems, {
+    customerName: pending.customer_name,
+    note: squareNote,
+    pickupMinutes: pending.pickup_minutes,
+    idempotencyKey: `stripe-checkout-${sessionId}`,
+  });
+
+  if (result.error) {
+    console.error('Stripe webhook: Square createOrder failed:', result.error);
+    return { status: 500, body: 'Square order failed' };
+  }
+
+  const paymentEntry = buildPaymentSessionEntry(session, 'initial');
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const dup = await client.query(
+      `SELECT id FROM orders WHERE stripe_session_id = $1 LIMIT 1 FOR UPDATE`,
+      [sessionId]
+    );
+    if (dup.rows.length > 0) {
+      await client.query('ROLLBACK');
+      return { status: 200, json: { received: true } };
+    }
+
+    let dbOrderId;
+    try {
+      const out = await persistStripePaidOrderInClient(client, {
+        squareOrderId: result.orderId,
+        userId: pending.user_id,
+        customerName: pending.customer_name,
+        notes: pending.notes,
+        allergens: pending.allergens,
+        pickupMinutes: pending.pickup_minutes,
+        enrichedLineItems: enriched,
+        stripeSessionId: sessionId,
+        pendingOrderId: pendingId,
+        paymentSessionEntry: paymentEntry,
+      });
+      dbOrderId = out.dbOrderId;
+    } catch (insErr) {
+      if (insErr.code === '23505') {
+        await client.query('ROLLBACK');
+        return { status: 200, json: { received: true } };
+      }
+      throw insErr;
+    }
+    await client.query('COMMIT');
+
+    if (io) {
+      io.emit('orderUpdated', {
+        type: 'created',
+        dbOrderId,
+        squareOrderId: result.orderId,
+      });
+    }
+  } catch (dbErr) {
+    await client.query('ROLLBACK');
+    console.error('Stripe webhook: database error:', dbErr);
+    return { status: 500, body: 'Database error' };
+  } finally {
+    client.release();
+  }
+
+  return { status: 200, json: { received: true } };
 }
 
 function createWebhookHandler(io) {
@@ -182,118 +537,13 @@ function createWebhookHandler(io) {
       return res.json({ received: true });
     }
 
-    const session = event.data.object;
-    const sessionId = session.id;
-
     try {
-      const existing = await findOrderIdByStripeSessionId(sessionId);
-      if (existing != null) {
-        return res.json({ received: true });
+      const session = event.data.object;
+      const out = await handleCheckoutSessionCompleted(io, session);
+      if (out.json) {
+        return res.status(out.status).json(out.json);
       }
-
-      const pendingId = session.metadata?.pending_order_id;
-      if (!pendingId) {
-        console.error('Stripe webhook: missing pending_order_id in metadata');
-        return res.status(400).send('Missing metadata');
-      }
-
-      const pending = await fetchPendingOrderById(pendingId);
-      if (!pending) {
-        const again = await findOrderIdByStripeSessionId(sessionId);
-        if (again != null) return res.json({ received: true });
-        console.error('Stripe webhook: pending order not found', pendingId);
-        return res.status(404).send('Pending order not found');
-      }
-
-      let enriched = pending.line_items;
-      if (typeof enriched === 'string') {
-        enriched = JSON.parse(enriched);
-      }
-
-      const sessionTotal = session.amount_total != null ? Number(session.amount_total) : null;
-      if (sessionTotal != null && sessionTotal !== Number(pending.total_amount)) {
-        console.error('Stripe webhook: amount mismatch', sessionTotal, pending.total_amount);
-        return res.status(400).send('Amount mismatch');
-      }
-
-      const locationId = await square.getLocationId();
-      if (!locationId) {
-        console.error('Stripe webhook: no Square location');
-        return res.status(500).send('Square not configured');
-      }
-
-      const allergensNorm = normalizeAllergensInput(pending.allergens);
-      const squareNote = squarePickupNoteFromAllergens(allergensNorm);
-
-      const squareLineItems = enriched.map((li) => ({
-        catalog_object_id: li.catalog_object_id,
-        quantity: li.quantity,
-        square_modifier_ids: li.square_modifier_ids,
-      }));
-
-      const result = await square.createOrder(locationId, squareLineItems, {
-        customerName: pending.customer_name,
-        note: squareNote,
-        pickupMinutes: pending.pickup_minutes,
-        idempotencyKey: `stripe-checkout-${sessionId}`,
-      });
-
-      if (result.error) {
-        console.error('Stripe webhook: Square createOrder failed:', result.error);
-        return res.status(500).send('Square order failed');
-      }
-
-      const client = await db.connect();
-      try {
-        await client.query('BEGIN');
-        const dup = await client.query(
-          `SELECT id FROM orders WHERE stripe_session_id = $1 LIMIT 1 FOR UPDATE`,
-          [sessionId]
-        );
-        if (dup.rows.length > 0) {
-          await client.query('ROLLBACK');
-          return res.json({ received: true });
-        }
-
-        let dbOrderId;
-        try {
-          const out = await persistStripePaidOrderInClient(client, {
-            squareOrderId: result.orderId,
-            userId: pending.user_id,
-            customerName: pending.customer_name,
-            notes: pending.notes,
-            allergens: pending.allergens,
-            pickupMinutes: pending.pickup_minutes,
-            enrichedLineItems: enriched,
-            stripeSessionId: sessionId,
-            pendingOrderId: pendingId,
-          });
-          dbOrderId = out.dbOrderId;
-        } catch (insErr) {
-          if (insErr.code === '23505') {
-            await client.query('ROLLBACK');
-            return res.json({ received: true });
-          }
-          throw insErr;
-        }
-        await client.query('COMMIT');
-
-        if (io) {
-          io.emit('orderUpdated', {
-            type: 'created',
-            dbOrderId,
-            squareOrderId: result.orderId,
-          });
-        }
-      } catch (dbErr) {
-        await client.query('ROLLBACK');
-        console.error('Stripe webhook: database error:', dbErr);
-        return res.status(500).send('Database error');
-      } finally {
-        client.release();
-      }
-
-      return res.json({ received: true });
+      return res.status(out.status).send(out.body);
     } catch (err) {
       if (err.code === 'CONFIG') {
         return res.status(500).send('Stripe not configured');

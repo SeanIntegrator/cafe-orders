@@ -1,15 +1,46 @@
 /**
- * Authenticated customer order list, detail, and PATCH (edit while pending/confirmed).
+ * Authenticated customer order list, detail, PATCH (edit), and cancel + refund.
  */
 
 const express = require('express');
+const Stripe = require('stripe');
 const pool = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const {
   fetchOrderForUser,
   mapOrderRow,
   updateOrderLineItemsAndMeta,
+  fetchOrderRowForUser,
+  pickupAllowsModification,
 } = require('../lib/orders-db');
+
+function getStripe() {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) throw Object.assign(new Error('STRIPE_SECRET_KEY not set'), { code: 'CONFIG' });
+  return new Stripe(key);
+}
+
+async function ensurePaymentSessionsPopulated(order) {
+  let sessions = Array.isArray(order.payment_sessions) ? order.payment_sessions : [];
+  if (sessions.length > 0 || !order.stripe_session_id) {
+    return sessions;
+  }
+  const stripe = getStripe();
+  const s = await stripe.checkout.sessions.retrieve(order.stripe_session_id);
+  const pi = s.payment_intent;
+  const entry = {
+    session_id: s.id,
+    payment_intent_id: typeof pi === 'string' ? pi : pi?.id || null,
+    amount: s.amount_total != null ? Number(s.amount_total) : 0,
+    timestamp: new Date().toISOString(),
+    type: 'initial',
+  };
+  await pool.query(
+    `UPDATE orders SET payment_sessions = COALESCE(payment_sessions, '[]'::jsonb) || $2::jsonb WHERE id = $1`,
+    [order.id, JSON.stringify([entry])]
+  );
+  return [entry];
+}
 
 module.exports = function createCustomerOrdersRouter(io) {
   const router = express.Router();
@@ -43,7 +74,7 @@ module.exports = function createCustomerOrdersRouter(io) {
       }
 
       const { rows: orders } = await pool.query(
-        `SELECT id, square_order_id, stripe_session_id, customer_name, notes, allergens, total_amount, status, pickup_time, created_at, updated_at
+        `SELECT id, square_order_id, stripe_session_id, payment_sessions, customer_name, notes, allergens, total_amount, status, pickup_time, created_at, updated_at
          FROM orders ${where}
          ORDER BY created_at DESC
          LIMIT 40`,
@@ -82,8 +113,15 @@ module.exports = function createCustomerOrdersRouter(io) {
     }
     try {
       const { rows } = await pool.query(
-        `SELECT id, square_order_id, stripe_session_id, customer_name, notes, allergens, total_amount, status, pickup_time, created_at, updated_at
-         FROM orders WHERE stripe_session_id = $1 AND user_id = $2 LIMIT 1`,
+        `SELECT id, square_order_id, stripe_session_id, payment_sessions, customer_name, notes, allergens, total_amount, status, pickup_time, created_at, updated_at
+         FROM orders WHERE user_id = $2 AND (
+           stripe_session_id = $1
+           OR EXISTS (
+             SELECT 1 FROM jsonb_array_elements(COALESCE(payment_sessions, '[]'::jsonb)) AS e
+             WHERE e->>'session_id' = $1
+           )
+         )
+         LIMIT 1`,
         [sessionId, req.userId]
       );
       if (rows.length === 0) {
@@ -99,6 +137,104 @@ module.exports = function createCustomerOrdersRouter(io) {
     } catch (err) {
       console.error('GET /api/customer/order-by-checkout-session error:', err);
       res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  router.post('/api/customer/orders/:id/cancel', requireAuth, async (req, res) => {
+    const orderId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(orderId)) {
+      return res.status(400).json({ ok: false, error: 'Invalid order id' });
+    }
+    try {
+      const order = await fetchOrderRowForUser(orderId, req.userId);
+      if (!order) {
+        return res.status(404).json({ ok: false, error: 'Order not found' });
+      }
+      if (!['pending', 'confirmed'].includes(order.status)) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Cannot cancel order',
+          reason: 'already_cancelled',
+        });
+      }
+      if (!pickupAllowsModification(order.pickup_time)) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Cannot cancel order',
+          reason: 'too_close_to_pickup',
+        });
+      }
+
+      let sessions = await ensurePaymentSessionsPopulated(order);
+      if (sessions.length === 0) {
+        return res.status(400).json({
+          ok: false,
+          error: 'No Stripe payments to refund for this order',
+        });
+      }
+
+      const stripe = getStripe();
+      const refundRecords = [];
+      let totalRefunded = 0;
+
+      for (const ps of sessions) {
+        let pi = ps.payment_intent_id;
+        if (!pi && ps.session_id) {
+          const s = await stripe.checkout.sessions.retrieve(ps.session_id);
+          const p = s.payment_intent;
+          pi = typeof p === 'string' ? p : p?.id;
+        }
+        if (!pi) {
+          console.error('Cancel: missing payment_intent for session', ps.session_id);
+          return res.status(500).json({ ok: false, error: 'Could not resolve payment for refund' });
+        }
+        const amt = Number(ps.amount) || 0;
+        const refund = await stripe.refunds.create({
+          payment_intent: pi,
+          amount: amt,
+          reason: 'requested_by_customer',
+        });
+        refundRecords.push({
+          refund_id: refund.id,
+          amount: amt,
+          session_id: ps.session_id,
+          timestamp: new Date().toISOString(),
+          status: refund.status,
+        });
+        totalRefunded += amt;
+      }
+
+      const refundData = {
+        refunds: refundRecords,
+        total_refunded: totalRefunded,
+        reason: 'requested_by_customer',
+      };
+
+      await pool.query(
+        `UPDATE orders SET status = 'cancelled', refund_data = $2::jsonb, updated_at = NOW() WHERE id = $1 AND user_id = $3`,
+        [orderId, JSON.stringify(refundData), req.userId]
+      );
+
+      if (io) {
+        io.emit('orderCancelled', {
+          dbOrderId: orderId,
+          squareOrderId: order.square_order_id,
+        });
+      }
+
+      return res.json({
+        ok: true,
+        cancelled: true,
+        refunded_amount: totalRefunded,
+        refund_ids: refundRecords.map((r) => r.refund_id),
+        message: 'Refund will appear in 5–10 business days',
+      });
+    } catch (err) {
+      if (err.code === 'CONFIG') {
+        return res.status(500).json({ ok: false, error: err.message });
+      }
+      console.error('POST cancel order:', err);
+      return res.status(500).json({ ok: false, error: err.message || 'Cancel failed' });
     }
   });
 

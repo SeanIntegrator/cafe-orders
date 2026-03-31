@@ -1,7 +1,7 @@
 /** Entry point — socket setup, init sequence, and demo data. */
 
 import { loadModifierCategories, loadLiveOrders } from './api.js';
-import { addOrUpdateOrder, updateTimers } from './board.js';
+import { addOrUpdateOrder, updateTimers, dismissOrder } from './board.js';
 import './history.js';
 
 /* global io */
@@ -22,6 +22,12 @@ socket.on('new-order', (payload) => {
 });
 
 socket.on('orderUpdated', () => {
+  loadLiveOrders(addOrUpdateOrder);
+});
+
+socket.on('orderCancelled', (payload) => {
+  const sq = payload?.squareOrderId != null ? String(payload.squareOrderId) : '';
+  if (sq) dismissOrder(sq);
   loadLiveOrders(addOrUpdateOrder);
 });
 
