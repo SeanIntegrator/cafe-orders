@@ -138,7 +138,7 @@ module.exports = function createCustomerOrdersRouter(io) {
         [sessionId, req.userId]
       );
       if (rows.length === 0) {
-        return res.status(404).json({ ok: false, error: 'Order not found' });
+        return res.status(202).json({ ok: false, code: 'NOT_READY', error: 'Order not ready' });
       }
       const row = rows[0];
       const { rows: itemRows } = await pool.query(
