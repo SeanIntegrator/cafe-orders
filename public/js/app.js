@@ -31,6 +31,12 @@ socket.on('orderCancelled', (payload) => {
   loadLiveOrders(addOrUpdateOrder);
 });
 
+/** Square order fully completed/canceled in Dashboard, POS, or API — remove from KDS without a full page reload */
+socket.on('squareOrderClosed', (payload) => {
+  const sq = payload?.squareOrderId != null ? String(payload.squareOrderId) : '';
+  if (sq) dismissOrder(sq);
+});
+
 // Toggle completion state when clicking a line item
 document.getElementById('board-container').addEventListener('click', (event) => {
   const line = event.target.closest('.line-item');

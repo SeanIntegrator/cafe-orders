@@ -10,6 +10,7 @@ import {
   getOrderReadyAt,
   getEtaLabelText,
   escapeHtml,
+  shouldShowOrderOnKds,
 } from './helpers.js';
 import { handleDone } from './api.js';
 
@@ -33,7 +34,7 @@ export function removeCardSilently(id) {
 export function addOrUpdateOrder(order) {
   if (!order?.id) return;
   const isDemo = String(order.id || '').startsWith('demo-');
-  if (!isDemo && (order.state === 'COMPLETED' || order.state === 'CANCELED')) return;
+  if (!isDemo && !shouldShowOrderOnKds(order)) return;
   if (orders[order.id]) {
     removeCardSilently(order.id);
   }
