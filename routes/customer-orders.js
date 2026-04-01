@@ -4,6 +4,7 @@
 
 const express = require('express');
 const Stripe = require('stripe');
+const crypto = require('crypto');
 const pool = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const {
@@ -18,11 +19,18 @@ const {
   getLastStampDate,
   loyaltyConfig,
 } = require('../lib/loyalty');
+const { DRINK_MENU_BUCKETS } = require('../lib/menu-bucket');
 
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) throw Object.assign(new Error('STRIPE_SECRET_KEY not set'), { code: 'CONFIG' });
   return new Stripe(key);
+}
+
+function refundIdempotencyKey(orderId, paymentIntentId, sessionId) {
+  const base = `${orderId}|${paymentIntentId || ''}|${sessionId || ''}`;
+  const digest = crypto.createHash('sha256').update(base).digest('hex').slice(0, 40);
+  return `refund-${digest}`;
 }
 
 async function ensurePaymentSessionsPopulated(order) {
@@ -194,11 +202,16 @@ module.exports = function createCustomerOrdersRouter(io) {
           return res.status(500).json({ ok: false, error: 'Could not resolve payment for refund' });
         }
         const amt = Number(ps.amount) || 0;
-        const refund = await stripe.refunds.create({
-          payment_intent: pi,
-          amount: amt,
-          reason: 'requested_by_customer',
-        });
+        const refund = await stripe.refunds.create(
+          {
+            payment_intent: pi,
+            amount: amt,
+            reason: 'requested_by_customer',
+          },
+          {
+            idempotencyKey: refundIdempotencyKey(orderId, pi, ps.session_id),
+          }
+        );
         refundRecords.push({
           refund_id: refund.id,
           amount: amt,
@@ -279,6 +292,28 @@ module.exports = function createCustomerOrdersRouter(io) {
     } catch (err) {
       console.error('GET /api/customer/loyalty error:', err);
       res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  router.get('/api/customer/config', requireAuth, async (req, res) => {
+    try {
+      const cfg = loyaltyConfig();
+      return res.json({
+        ok: true,
+        loyalty: {
+          stampThresholdPence: cfg.stampThresholdPence,
+          stampsPerReward: cfg.stampsPerReward,
+          rewardMaxPence: cfg.rewardMaxPence,
+          stripeMinAmountPence: cfg.stripeMinAmountPence,
+          doubleStampWeekday: cfg.doubleStampWeekday,
+        },
+        reward: {
+          drinkCategorySlugs: DRINK_MENU_BUCKETS,
+        },
+      });
+    } catch (err) {
+      console.error('GET /api/customer/config error:', err);
+      return res.status(500).json({ ok: false, error: err.message || 'Failed to load config' });
     }
   });
 

@@ -71,10 +71,17 @@ module.exports = function createFeedbackRouter() {
       orderRaw === undefined || orderRaw === null ? '' : String(orderRaw).trim();
 
     if (!orderIdStr) {
-      return res.status(400).json({ success: false, error: 'order_id required' });
+      return res
+        .status(400)
+        .json({ ok: false, success: false, code: 'ORDER_ID_REQUIRED', error: 'order_id required' });
     }
     if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
-      return res.status(400).json({ success: false, error: 'rating must be an integer 1–5' });
+      return res.status(400).json({
+        ok: false,
+        success: false,
+        code: 'INVALID_RATING',
+        error: 'rating must be an integer 1–5',
+      });
     }
 
     const shouldShowGooglePrompt = rating >= 4;
@@ -86,6 +93,7 @@ module.exports = function createFeedbackRouter() {
     }
 
     return res.json({
+      ok: true,
       success: true,
       shouldShowGooglePrompt,
       googleReviewUrl: GOOGLE_REVIEW_URL,

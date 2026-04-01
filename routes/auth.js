@@ -37,11 +37,11 @@ router.post('/google', async (req, res) => {
   try {
     const { credential } = req.body ?? {};
     if (!credential) {
-      return res.status(400).json({ error: 'Missing credential' });
+      return res.status(400).json({ ok: false, code: 'MISSING_CREDENTIAL', error: 'Missing credential' });
     }
     if (!process.env.GOOGLE_CLIENT_ID || !process.env.JWT_SECRET) {
       console.error('Auth misconfigured: missing GOOGLE_CLIENT_ID or JWT_SECRET');
-      return res.status(500).json({ error: 'Authentication not configured' });
+      return res.status(500).json({ ok: false, code: 'AUTH_CONFIG', error: 'Authentication not configured' });
     }
 
     const ticket = await googleClient.verifyIdToken({
@@ -56,7 +56,7 @@ router.post('/google', async (req, res) => {
     const avatarUrl = payload.picture || null;
 
     if (!googleId || !email) {
-      return res.status(400).json({ error: 'Invalid token payload' });
+      return res.status(400).json({ ok: false, code: 'INVALID_GOOGLE_TOKEN', error: 'Invalid token payload' });
     }
 
     const upsertQuery = `
@@ -96,6 +96,7 @@ router.post('/google', async (req, res) => {
     const payloadUser = await buildUserResponsePayload(user);
 
     return res.json({
+      ok: true,
       token: sessionToken,
       user: payloadUser,
     });
@@ -105,9 +106,13 @@ router.post('/google', async (req, res) => {
       error.message?.includes('Token used too late') ||
       error.message?.includes('Invalid token')
     ) {
-      return res.status(401).json({ error: 'Invalid or expired Google credential' });
+      return res.status(401).json({
+        ok: false,
+        code: 'INVALID_GOOGLE_CREDENTIAL',
+        error: 'Invalid or expired Google credential',
+      });
     }
-    return res.status(500).json({ error: 'Authentication failed' });
+    return res.status(500).json({ ok: false, code: 'AUTH_FAILED', error: 'Authentication failed' });
   }
 });
 
@@ -119,11 +124,11 @@ router.get('/me', async (req, res) => {
         : null) || req.cookies?.session;
 
     if (!token) {
-      return res.json({ user: null });
+      return res.json({ ok: true, user: null });
     }
 
     if (!process.env.JWT_SECRET) {
-      return res.status(500).json({ error: 'Authentication not configured' });
+      return res.status(500).json({ ok: false, code: 'AUTH_CONFIG', error: 'Authentication not configured' });
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -134,18 +139,22 @@ router.get('/me', async (req, res) => {
     );
 
     if (rows.length === 0) {
-      return res.status(401).json({ error: 'User not found' });
+      return res.status(401).json({ ok: false, code: 'USER_NOT_FOUND', error: 'User not found' });
     }
 
     const user = rows[0];
     const payloadUser = await buildUserResponsePayload(user);
-    return res.json({ user: payloadUser });
+    return res.json({ ok: true, user: payloadUser });
   } catch (error) {
     if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
-      return res.status(401).json({ error: 'Invalid or expired session' });
+      return res.status(401).json({
+        ok: false,
+        code: 'SESSION_INVALID',
+        error: 'Invalid or expired session',
+      });
     }
     console.error('Auth me error:', error);
-    return res.status(500).json({ error: 'Server error' });
+    return res.status(500).json({ ok: false, code: 'SERVER_ERROR', error: 'Server error' });
   }
 });
 
@@ -157,7 +166,7 @@ router.post('/logout', (req, res) => {
     sameSite: o.sameSite,
     secure: o.secure,
   });
-  return res.json({ success: true });
+  return res.json({ ok: true, success: true });
 });
 
 module.exports = router;

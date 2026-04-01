@@ -84,7 +84,7 @@ app.use(createCatalogRouter(io));
 app.use(createCustomerOrdersRouter(io));
 app.use(createKdsHistoryRouter());
 app.use(createFeedbackRouter());
-app.use('/api/stripe', createCheckoutRouter());
+app.use('/api/stripe', createCheckoutRouter(io));
 attachWebhook(app, io);
 
 app.use(express.static('public'));

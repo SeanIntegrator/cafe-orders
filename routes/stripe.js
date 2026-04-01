@@ -4,6 +4,7 @@
 
 const express = require('express');
 const Stripe = require('stripe');
+const crypto = require('crypto');
 const { requireAuth } = require('../middleware/auth');
 const square = require('../lib/square');
 const { enrichLineItemsForCheckout, totalSmallestUnit } = require('../lib/stripe-helpers');
@@ -75,7 +76,14 @@ function buildPaymentSessionEntry(session, type) {
   };
 }
 
-function createCheckoutRouter() {
+function deriveIdempotencyKey(prefix, input) {
+  const raw = String(input || '').trim();
+  if (!raw) return null;
+  const digest = crypto.createHash('sha256').update(raw).digest('hex').slice(0, 40);
+  return `${prefix}-${digest}`;
+}
+
+function createCheckoutRouter(io) {
   const router = express.Router();
 
   router.post('/create-checkout-session', requireAuth, async (req, res) => {
@@ -179,27 +187,37 @@ function createCheckoutRouter() {
       });
 
       const stripe = getStripeClient();
-      const session = await stripe.checkout.sessions.create({
-        mode: 'payment',
-        line_items: [
-          {
-            price_data: {
-              currency: checkoutCurrency(),
-              product_data: {
-                name: `Order for ${String(customerName).slice(0, 120)}`,
+      const clientIdempotencyHint =
+        req.headers['x-idempotency-key'] || req.body?.idempotency_key || `pending-${pendingId}`;
+      const session = await stripe.checkout.sessions.create(
+        {
+          mode: 'payment',
+          line_items: [
+            {
+              price_data: {
+                currency: checkoutCurrency(),
+                product_data: {
+                  name: `Order for ${String(customerName).slice(0, 120)}`,
+                },
+                unit_amount: totalAmount,
               },
-              unit_amount: totalAmount,
+              quantity: 1,
             },
-            quantity: 1,
+          ],
+          success_url: `${frontendUrl.replace(/\/$/, '')}/order/success?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${frontendUrl.replace(/\/$/, '')}/order/cancelled`,
+          metadata: {
+            pending_order_id: String(pendingId),
+            user_id: String(req.userId),
           },
-        ],
-        success_url: `${frontendUrl.replace(/\/$/, '')}/order/success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${frontendUrl.replace(/\/$/, '')}/order/cancelled`,
-        metadata: {
-          pending_order_id: String(pendingId),
-          user_id: String(req.userId),
         },
-      });
+        {
+          idempotencyKey: deriveIdempotencyKey(
+            'checkout-session',
+            `${req.userId}|${clientIdempotencyHint}|${totalAmount}|${pendingId}`
+          ),
+        }
+      );
 
       await updatePendingOrderSessionId(pendingId, session.id);
 
@@ -298,29 +316,39 @@ function createCheckoutRouter() {
       });
 
       const stripe = getStripeClient();
-      const session = await stripe.checkout.sessions.create({
-        mode: 'payment',
-        line_items: [
-          {
-            price_data: {
-              currency: checkoutCurrency(),
-              product_data: {
-                name: `Add to order #${orderId}`,
+      const clientIdempotencyHint =
+        req.headers['x-idempotency-key'] || req.body?.idempotency_key || `pending-${pendingId}`;
+      const session = await stripe.checkout.sessions.create(
+        {
+          mode: 'payment',
+          line_items: [
+            {
+              price_data: {
+                currency: checkoutCurrency(),
+                product_data: {
+                  name: `Add to order #${orderId}`,
+                },
+                unit_amount: deltaAmount,
               },
-              unit_amount: deltaAmount,
+              quantity: 1,
             },
-            quantity: 1,
+          ],
+          success_url: `${frontendUrl.replace(/\/$/, '')}/order/success?session_id={CHECKOUT_SESSION_ID}&incremental=1`,
+          cancel_url: `${frontendUrl.replace(/\/$/, '')}/order/cancelled`,
+          metadata: {
+            pending_order_id: String(pendingId),
+            original_order_id: String(orderId),
+            user_id: String(req.userId),
+            incremental: 'true',
           },
-        ],
-        success_url: `${frontendUrl.replace(/\/$/, '')}/order/success?session_id={CHECKOUT_SESSION_ID}&incremental=1`,
-        cancel_url: `${frontendUrl.replace(/\/$/, '')}/order/cancelled`,
-        metadata: {
-          pending_order_id: String(pendingId),
-          original_order_id: String(orderId),
-          user_id: String(req.userId),
-          incremental: 'true',
         },
-      });
+        {
+          idempotencyKey: deriveIdempotencyKey(
+            'incremental-session',
+            `${req.userId}|${orderId}|${clientIdempotencyHint}|${deltaAmount}|${pendingId}`
+          ),
+        }
+      );
 
       await updatePendingOrderSessionId(pendingId, session.id);
 
@@ -341,10 +369,39 @@ function createCheckoutRouter() {
     }
   });
 
+  router.post('/finalize-checkout-session', requireAuth, async (req, res) => {
+    const sessionId = String(req.body?.session_id || '').trim();
+    if (!sessionId) {
+      return res.status(400).json({ ok: false, error: 'session_id required' });
+    }
+    try {
+      const stripe = getStripeClient();
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      const sessionUserId = session?.metadata?.user_id != null ? String(session.metadata.user_id) : null;
+      if (!sessionUserId || sessionUserId !== String(req.userId)) {
+        return res.status(403).json({ ok: false, error: 'Session does not belong to user' });
+      }
+      const out = await handleCheckoutSessionCompleted(io, session);
+      if (out.status >= 500) {
+        return res.status(out.status).json({ ok: false, error: out.body || 'Finalize failed' });
+      }
+      return res.json({ ok: true, finalized: true });
+    } catch (err) {
+      if (err.code === 'CONFIG') {
+        return res.status(500).json({ ok: false, error: err.message });
+      }
+      console.error('finalize-checkout-session:', err);
+      return res.status(500).json({ ok: false, error: err.message || 'Finalize failed' });
+    }
+  });
+
   return router;
 }
 
 async function handleCheckoutSessionCompleted(io, session) {
+  if (session?.payment_status && session.payment_status !== 'paid') {
+    return { status: 200, json: { received: true, skipped: 'payment_not_paid' } };
+  }
   const sessionId = session.id;
   const meta = session.metadata || {};
   const isIncremental = meta.incremental === 'true' && meta.original_order_id;
@@ -354,12 +411,12 @@ async function handleCheckoutSessionCompleted(io, session) {
     const pendingId = meta.pending_order_id;
     if (!Number.isFinite(originalOrderId) || !pendingId) {
       console.error('Stripe webhook incremental: bad metadata');
-      return { status: 400, body: 'Bad metadata' };
+      return { status: 200, json: { received: true, ignored: 'bad_metadata' } };
     }
 
     const parentEarly = await fetchOrderRowForUser(originalOrderId, meta.user_id);
     if (!parentEarly) {
-      return { status: 404, body: 'Order not found' };
+      return { status: 200, json: { received: true, ignored: 'order_not_found' } };
     }
     if (paymentSessionsInclude(parentEarly.payment_sessions, sessionId)) {
       return { status: 200, json: { received: true } };
@@ -368,7 +425,7 @@ async function handleCheckoutSessionCompleted(io, session) {
     const pending = await fetchPendingOrderById(pendingId);
     if (!pending || !pending.is_incremental || Number(pending.original_order_id) !== originalOrderId) {
       console.error('Stripe webhook incremental: pending missing or mismatch');
-      return { status: 404, body: 'Pending order not found' };
+      return { status: 200, json: { received: true, ignored: 'pending_not_found' } };
     }
 
     let enriched = pending.line_items;
@@ -377,7 +434,7 @@ async function handleCheckoutSessionCompleted(io, session) {
     const sessionTotal = session.amount_total != null ? Number(session.amount_total) : null;
     if (sessionTotal != null && sessionTotal !== Number(pending.total_amount)) {
       console.error('Stripe webhook incremental: amount mismatch', sessionTotal, pending.total_amount);
-      return { status: 400, body: 'Amount mismatch' };
+      return { status: 200, json: { received: true, ignored: 'amount_mismatch' } };
     }
 
     if (!parentEarly.square_order_id) {
@@ -453,7 +510,7 @@ async function handleCheckoutSessionCompleted(io, session) {
   const pendingId = meta.pending_order_id;
   if (!pendingId) {
     console.error('Stripe webhook: missing pending_order_id in metadata');
-    return { status: 400, body: 'Missing metadata' };
+    return { status: 200, json: { received: true, ignored: 'missing_metadata' } };
   }
 
   const pending = await fetchPendingOrderById(pendingId);
@@ -461,11 +518,11 @@ async function handleCheckoutSessionCompleted(io, session) {
     const again = await findOrderIdByStripeSessionId(sessionId);
     if (again != null) return { status: 200, json: { received: true } };
     console.error('Stripe webhook: pending order not found', pendingId);
-    return { status: 404, body: 'Pending order not found' };
+    return { status: 200, json: { received: true, ignored: 'pending_not_found' } };
   }
 
   if (pending.is_incremental) {
-    return { status: 400, body: 'Use incremental handler' };
+    return { status: 200, json: { received: true, ignored: 'wrong_handler' } };
   }
 
   let enriched = pending.line_items;
@@ -476,7 +533,7 @@ async function handleCheckoutSessionCompleted(io, session) {
   const sessionTotal = session.amount_total != null ? Number(session.amount_total) : null;
   if (sessionTotal != null && sessionTotal !== Number(pending.total_amount)) {
     console.error('Stripe webhook: amount mismatch', sessionTotal, pending.total_amount);
-    return { status: 400, body: 'Amount mismatch' };
+    return { status: 200, json: { received: true, ignored: 'amount_mismatch' } };
   }
 
   const locationId = await square.getLocationId();
@@ -585,7 +642,14 @@ function createWebhookHandler(io) {
       return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
-    if (event.type !== 'checkout.session.completed') {
+    if (event.type === 'checkout.session.async_payment_failed') {
+      console.warn('Stripe webhook async payment failed for session', event?.data?.object?.id);
+      return res.json({ received: true, ignored: true });
+    }
+    if (
+      event.type !== 'checkout.session.completed' &&
+      event.type !== 'checkout.session.async_payment_succeeded'
+    ) {
       return res.json({ received: true });
     }
 
