@@ -5,11 +5,15 @@ import { addOrUpdateOrder, updateTimers, dismissOrder } from './board.js';
 import './history.js';
 
 /* global io */
-const socket = io();
+const socket = io({
+  reconnectionDelay: 1000,
+  reconnectionAttempts: Infinity,
+});
 
 socket.on('connect', () => {
   console.log('Connected to server');
   loadModifierCategories();
+  loadLiveOrders(addOrUpdateOrder);
 });
 
 socket.on('new-order', (payload) => {

@@ -9,9 +9,20 @@
  * Emits:
  * - new-order — full order for KDS when the order should be visible
  * - squareOrderClosed — { squareOrderId } when Square marks the order done / not on KDS (dismiss card)
+ *
+ * Bursts of payment + order webhooks are debounced per order id so we fetch once and avoid
+ * new-order / squareOrderClosed races. Override with SQUARE_WEBHOOK_DEBOUNCE_MS (default 350).
  */
 
 const square = require('../lib/square');
+
+const KDS_WEBHOOK_DEBOUNCE_MS = Math.max(
+  0,
+  Number.parseInt(process.env.SQUARE_WEBHOOK_DEBOUNCE_MS || '350', 10) || 350
+);
+
+/** @type {Map<string, NodeJS.Timeout>} */
+const pendingKdsSyncByOrderId = new Map();
 
 const PAYMENT_EVENTS = new Set(['payment.created', 'payment.updated']);
 const ORDER_EVENTS = new Set(['order.created', 'order.updated']);
@@ -65,6 +76,29 @@ async function emitOrderForKds(io, orderId, partialOrder = null) {
   }
 }
 
+/**
+ * Coalesce rapid Square webhooks for the same order into one RetrieveOrder + one socket emit.
+ * @param {import('socket.io').Server} io
+ * @param {string} orderId
+ */
+function scheduleKdsSyncFromWebhook(io, orderId) {
+  if (KDS_WEBHOOK_DEBOUNCE_MS <= 0) {
+    emitOrderForKds(io, orderId, null).catch((e) =>
+      console.error('KDS webhook sync:', e.message || e)
+    );
+    return;
+  }
+  const prev = pendingKdsSyncByOrderId.get(orderId);
+  if (prev) clearTimeout(prev);
+  const t = setTimeout(() => {
+    pendingKdsSyncByOrderId.delete(orderId);
+    emitOrderForKds(io, orderId, null).catch((e) =>
+      console.error('KDS webhook debounced sync:', e.message || e)
+    );
+  }, KDS_WEBHOOK_DEBOUNCE_MS);
+  pendingKdsSyncByOrderId.set(orderId, t);
+}
+
 function attachWebhook(app, io) {
   app.post('/webhook', async (req, res) => {
     res.sendStatus(200);
@@ -80,7 +114,7 @@ function attachWebhook(app, io) {
           console.log('Payment webhook: no order_id, skip');
           return;
         }
-        await emitOrderForKds(io, orderId);
+        scheduleKdsSyncFromWebhook(io, orderId);
         return;
       }
 
@@ -90,10 +124,7 @@ function attachWebhook(app, io) {
           console.error('Webhook: no order ID in payload');
           return;
         }
-        const partial = event.data?.object?.order;
-        const partialUse =
-          partial?.id === orderId ? partial : null;
-        await emitOrderForKds(io, orderId, partialUse);
+        scheduleKdsSyncFromWebhook(io, orderId);
         return;
       }
 
@@ -103,7 +134,7 @@ function attachWebhook(app, io) {
           console.log('order.fulfillment.updated: no data.id, skip');
           return;
         }
-        await emitOrderForKds(io, orderId);
+        scheduleKdsSyncFromWebhook(io, orderId);
         return;
       }
 

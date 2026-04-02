@@ -55,6 +55,9 @@ const io = new Server(server, {
     origin: allowedOrigins.length ? allowedOrigins : true,
     credentials: true,
   },
+  // Heartbeats help proxies / platforms (e.g. Railway) from treating the socket as idle
+  pingInterval: 25000,
+  pingTimeout: 20000,
 });
 
 app.use(
