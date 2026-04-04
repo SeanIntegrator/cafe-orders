@@ -1,5 +1,12 @@
 /**
- * Square webhook handler.
+ * Square webhook handler (requires raw JSON body — see index.js).
+ *
+ * Signature verification: DISABLED for now (no Dashboard access). When ready, uncomment
+ * `const { WebhooksHelper } = require('square')` below and the block in createSquareWebhookHandler.
+ * Then set:
+ * - SQUARE_WEBHOOK_SIGNATURE_KEY — Developer Console → Webhooks → subscription signature key
+ * - SQUARE_WEBHOOK_NOTIFICATION_URL — exact notification URL (scheme, host, path; must match Console)
+ * Optional: SQUARE_WEBHOOK_SKIP_VERIFY=true — bypass HMAC (local/dev only) while verification code is enabled
  *
  * Subscribe in Square Developer Dashboard (same URL) to at least:
  * - payment.created, payment.updated — POS / Register payments (resolve order via Payment.order_id)
@@ -17,6 +24,8 @@
  * (KDS_NEW_ORDER_DEDUPE_MS, default 90s). squareOrderClosed is not deduped; forget() clears dedupe state.
  */
 
+// When enabling HMAC verification, uncomment:
+// const { WebhooksHelper } = require('square');
 const square = require('../lib/square');
 const emittedOrders = require('../lib/emitted-orders');
 
@@ -108,50 +117,104 @@ function scheduleKdsSyncFromWebhook(io, orderId) {
   pendingKdsSyncByOrderId.set(orderId, t);
 }
 
-function attachWebhook(app, io) {
-  app.post('/webhook', async (req, res) => {
+/**
+ * @param {import('socket.io').Server} io
+ * @param {object} event
+ */
+function processSquareWebhookEvent(io, event) {
+  const type = event?.type;
+
+  if (PAYMENT_EVENTS.has(type)) {
+    const orderId = orderIdFromPaymentWebhook(event);
+    if (!orderId) {
+      console.log('Payment webhook: no order_id, skip');
+      return;
+    }
+    scheduleKdsSyncFromWebhook(io, orderId);
+    return;
+  }
+
+  if (ORDER_EVENTS.has(type)) {
+    const orderId = orderIdFromOrderWebhook(event);
+    if (!orderId) {
+      console.error('Webhook: no order ID in payload');
+      return;
+    }
+    scheduleKdsSyncFromWebhook(io, orderId);
+    return;
+  }
+
+  if (type === FULFILLMENT_UPDATED) {
+    const orderId = event.data?.id;
+    if (!orderId || typeof orderId !== 'string') {
+      console.log('order.fulfillment.updated: no data.id, skip');
+      return;
+    }
+    scheduleKdsSyncFromWebhook(io, orderId);
+    return;
+  }
+
+  console.log('Ignoring unhandled Square event type');
+}
+
+/**
+ * Express handler: expects `express.raw({ type: 'application/json' })` so req.body is a Buffer.
+ * @param {import('socket.io').Server} io
+ */
+function createSquareWebhookHandler(io) {
+  return async (req, res) => {
+    const raw = req.body;
+    const bodyString = Buffer.isBuffer(raw) ? raw.toString('utf8') : String(raw ?? '');
+    if (!bodyString) {
+      return res.sendStatus(400);
+    }
+
+    /* --- Re-enable Square webhook HMAC when Dashboard signing key + notification URL are available ---
+    const skipVerify = process.env.SQUARE_WEBHOOK_SKIP_VERIFY === 'true';
+    if (!skipVerify) {
+      const signatureKey = process.env.SQUARE_WEBHOOK_SIGNATURE_KEY;
+      const notificationUrl = process.env.SQUARE_WEBHOOK_NOTIFICATION_URL;
+      if (!signatureKey || !notificationUrl) {
+        console.error(
+          'Square webhook: set SQUARE_WEBHOOK_SIGNATURE_KEY and SQUARE_WEBHOOK_NOTIFICATION_URL, or SQUARE_WEBHOOK_SKIP_VERIFY=true for local dev'
+        );
+        return res.sendStatus(503);
+      }
+      const signatureHeader = req.get('x-square-hmacsha256-signature') || '';
+      let valid = false;
+      try {
+        valid = await WebhooksHelper.verifySignature({
+          requestBody: bodyString,
+          signatureHeader,
+          signatureKey,
+          notificationUrl,
+        });
+      } catch (e) {
+        console.error('Square webhook signature error:', e.message || e);
+        return res.sendStatus(500);
+      }
+      if (!valid) {
+        return res.sendStatus(403);
+      }
+    }
+    --- end commented verification --- */
+
+    let event;
+    try {
+      event = JSON.parse(bodyString);
+    } catch {
+      return res.sendStatus(400);
+    }
+
     res.sendStatus(200);
 
-    const event = req.body;
-    const type = event?.type;
-    console.log('Square webhook event:', type);
-
+    console.log('Square webhook event:', event?.type);
     try {
-      if (PAYMENT_EVENTS.has(type)) {
-        const orderId = orderIdFromPaymentWebhook(event);
-        if (!orderId) {
-          console.log('Payment webhook: no order_id, skip');
-          return;
-        }
-        scheduleKdsSyncFromWebhook(io, orderId);
-        return;
-      }
-
-      if (ORDER_EVENTS.has(type)) {
-        const orderId = orderIdFromOrderWebhook(event);
-        if (!orderId) {
-          console.error('Webhook: no order ID in payload');
-          return;
-        }
-        scheduleKdsSyncFromWebhook(io, orderId);
-        return;
-      }
-
-      if (type === FULFILLMENT_UPDATED) {
-        const orderId = event.data?.id;
-        if (!orderId || typeof orderId !== 'string') {
-          console.log('order.fulfillment.updated: no data.id, skip');
-          return;
-        }
-        scheduleKdsSyncFromWebhook(io, orderId);
-        return;
-      }
-
-      console.log('Ignoring unhandled Square event type');
+      processSquareWebhookEvent(io, event);
     } catch (err) {
       console.error('Square webhook handler error:', err.message || err);
     }
-  });
+  };
 }
 
-module.exports = { attachWebhook };
+module.exports = { createSquareWebhookHandler };
