@@ -4,28 +4,56 @@
   height: 40px;
 }
 
-.live-dot {
+.live-dot,
+.connection-status {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 0.75rem;
-  color: var(--muted);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.live-dot::before {
-  content: '';
+.connection-status-label {
+  transition: color 0.2s ease;
+}
+
+.connection-status--connected .connection-status-label {
+  color: var(--paid);
+}
+
+.connection-status--reconnecting .connection-status-label {
+  color: #9a7b3a;
+}
+
+.connection-status--failed .connection-status-label {
+  color: #9a5c5c;
+}
+
+.status-dot {
+  flex-shrink: 0;
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: var(--paid);
-  animation: pulse 2s ease-in-out infinite;
+  transition: background-color 0.2s ease;
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.8); }
+.status-dot--connected {
+  background: var(--paid);
+}
+
+.status-dot--reconnecting {
+  background: #c9a227;
+  animation: statusDotPulse 1s ease-in-out infinite;
+}
+
+.status-dot--failed {
+  background: #b85c5c;
+}
+
+@keyframes statusDotPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 
 .demo-btn {

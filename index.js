@@ -13,6 +13,7 @@ const createKdsHistoryRouter = require('./routes/kds-history');
 const createFeedbackRouter = require('./routes/feedback');
 const authRouter = require('./routes/auth');
 const { attachWebhook } = require('./routes/webhook');
+const { startPolling } = require('./lib/orders-poller');
 const { createCheckoutRouter, createWebhookHandler } = require('./routes/stripe');
 const square = require('./lib/square');
 
@@ -89,6 +90,10 @@ app.use(createKdsHistoryRouter());
 app.use(createFeedbackRouter());
 app.use('/api/stripe', createCheckoutRouter(io));
 attachWebhook(app, io);
+
+if (process.env.KDS_POLL_ENABLED !== 'false') {
+  startPolling(io);
+}
 
 app.use(express.static('public'));
 

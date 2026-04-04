@@ -12,9 +12,13 @@
  *
  * Bursts of payment + order webhooks are debounced per order id so we fetch once and avoid
  * new-order / squareOrderClosed races. Override with SQUARE_WEBHOOK_DEBOUNCE_MS (default 350).
+ *
+ * new-order emissions are also deduped across webhook + poller via lib/emitted-orders.js
+ * (KDS_NEW_ORDER_DEDUPE_MS, default 90s). squareOrderClosed is not deduped; forget() clears dedupe state.
  */
 
 const square = require('../lib/square');
+const emittedOrders = require('../lib/emitted-orders');
 
 const KDS_WEBHOOK_DEBOUNCE_MS = Math.max(
   0,
@@ -70,9 +74,14 @@ async function emitOrderForKds(io, orderId, partialOrder = null) {
     return;
   }
   if (square.kdsShouldDisplayOrder(resolved)) {
+    if (!emittedOrders.shouldEmitNewOrder(orderId)) {
+      return;
+    }
     io.emit('new-order', resolved);
+    emittedOrders.recordNewOrderEmit(orderId);
   } else {
     io.emit('squareOrderClosed', { squareOrderId: orderId });
+    emittedOrders.forget(orderId);
   }
 }
 

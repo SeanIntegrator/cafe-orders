@@ -2,19 +2,42 @@
 
 import { loadModifierCategories, loadLiveOrders } from './api.js';
 import { addOrUpdateOrder, updateTimers, dismissOrder } from './board.js';
+import { setConnectionStatus } from './ui.js';
 import './history.js';
+
+setConnectionStatus('reconnecting');
 
 /* global io */
 const socket = io({
   reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
   reconnectionAttempts: Infinity,
 });
 
 socket.on('connect', () => {
   console.log('Connected to server');
+  setConnectionStatus('connected');
   loadModifierCategories();
   loadLiveOrders(addOrUpdateOrder);
 });
+
+socket.on('disconnect', () => {
+  setConnectionStatus('reconnecting');
+});
+
+socket.on('reconnect', () => {
+  setConnectionStatus('connected');
+});
+
+socket.on('reconnect_failed', () => {
+  setConnectionStatus('failed');
+});
+
+if (socket.io) {
+  socket.io.on('reconnect_attempt', () => {
+    setConnectionStatus('reconnecting');
+  });
+}
 
 socket.on('new-order', (payload) => {
   console.log('Received new-order event from server:', payload);

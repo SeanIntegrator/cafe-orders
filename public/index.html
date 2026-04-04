@@ -20,7 +20,10 @@
     <img src="logo.png" alt="Clay and Bean logo" class="brand-mark" />
     Clay & Bean <span class="flow">Flow</span>
   </h1>
-  <div class="live-dot">Live</div>
+  <div class="connection-status live-dot connection-status--reconnecting" id="connection-status" role="status" aria-live="polite">
+    <span class="status-dot status-dot--reconnecting" id="connection-status-dot" aria-hidden="true"></span>
+    <span class="connection-status-label" id="connection-status-label">Reconnecting…</span>
+  </div>
   <div class="header-right">
     <span class="order-count" id="order-count">0 active</span>
     <button type="button" class="demo-btn" id="history-recall-btn" title="Recent orders from the app (saved here for reference)">Recent orders</button>
