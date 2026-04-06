@@ -4,6 +4,7 @@
 
 const express = require('express');
 const square = require('../lib/square');
+const { kdsShouldDisplayOrder } = require('../lib/kds-visibility');
 const pool = require('../db');
 const { markOrderCompletedBySquareId } = require('../lib/orders-db');
 const { mergeOpenOrdersWithWebAppDb } = require('../lib/kds-merge');
@@ -50,8 +51,9 @@ module.exports = function createOrdersRouter(io) {
 
   router.get('/api/orders', async (req, res) => {
     try {
-      const mergedList = await mergeOpenOrdersWithWebAppDb(() => square.searchOpenOrders());
-      res.json({ ok: true, orders: mergedList });
+      const mergedList = await mergeOpenOrdersWithWebAppDb(() => square.searchKdsBoardSquareOrders());
+      const orders = mergedList.filter(kdsShouldDisplayOrder);
+      res.json({ ok: true, orders });
     } catch (err) {
       if (err.code === 'CONFIG') {
         return res.status(500).json({ ok: false, error: err.message });

@@ -1,5 +1,7 @@
 /** Pure utility functions — no DOM, no side-effects. */
 
+export { shouldShowOrderOnKds } from './kds-visibility.js';
+
 export function escapeHtml(s) {
   if (s == null) return '';
   return String(s)
@@ -111,21 +113,3 @@ export function getEtaLabelText(order) {
   return `Pickup in ${remainingMins} mins`;
 }
 
-/**
- * Mirror of lib/square.js kdsShouldDisplayOrder — keep in sync.
- * @param {object} order
- */
-export function shouldShowOrderOnKds(order) {
-  if (!order?.id) return false;
-  if (order.state === 'CANCELED') return false;
-  if (order.state === 'OPEN') return true;
-  if (order.state === 'COMPLETED') {
-    const ff = order.fulfillments;
-    if (!Array.isArray(ff) || ff.length === 0) return false;
-    return ff.some((f) => {
-      const fs = f.state;
-      return fs && !['COMPLETED', 'CANCELED'].includes(fs);
-    });
-  }
-  return false;
-}
