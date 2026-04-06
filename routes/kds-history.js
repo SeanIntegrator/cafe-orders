@@ -23,6 +23,8 @@ module.exports = function createKdsHistoryRouter() {
       since = new Date(now.getTime() - 60 * 60 * 1000);
     } else if (period === 'week') {
       since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    } else if (period === 'all') {
+      since = new Date('2020-01-01T00:00:00Z');
     } else {
       const d = new Date(now);
       d.setUTCHours(0, 0, 0, 0);
