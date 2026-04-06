@@ -53,10 +53,15 @@
       <h2 id="history-modal-title">Recent orders</h2>
       <button type="button" class="order-modal-close" id="history-modal-close" aria-label="Close">&times;</button>
     </div>
+    <div class="history-source-toggle">
+      <button type="button" class="active" data-history-source="db">App orders</button>
+      <button type="button" data-history-source="square">Square (all)</button>
+    </div>
     <div class="history-period-tabs">
       <button type="button" data-history-period="hour">Last hour</button>
       <button type="button" data-history-period="today">Today</button>
       <button type="button" data-history-period="week">This week</button>
+      <button type="button" data-history-period="all">All time</button>
     </div>
     <div class="history-modal-body" id="history-modal-list"></div>
   </div>
