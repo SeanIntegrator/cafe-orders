@@ -1,0 +1,449 @@
+/* KDS Concept C — order cards */
+
+@keyframes kdsCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes kdsCardOut {
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+.kds-card {
+  background: var(--kds-card-bg);
+  border: 0.5px solid var(--kds-card-border);
+  border-radius: var(--kds-card-radius);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  animation: kdsCardIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  list-style: none;
+}
+
+.kds-card.removing {
+  animation: kdsCardOut 0.3s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+.kds-card--allergy {
+  border-width: 2.5px;
+  border-color: var(--kds-allergy);
+}
+
+/* Header */
+.kds-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 10px;
+  border-bottom: 0.5px solid var(--kds-card-border);
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.kds-card__service {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--kds-muted);
+}
+
+.kds-timer {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.kds-timer--green {
+  background: var(--kds-timer-green-bg);
+  color: var(--kds-timer-green-fg);
+}
+
+.kds-timer--amber {
+  background: var(--kds-timer-amber-bg);
+  color: var(--kds-timer-amber-fg);
+}
+
+.kds-timer--red {
+  background: var(--kds-timer-red-bg);
+  color: var(--kds-timer-red-fg);
+}
+
+/* Body */
+.kds-card__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.kds-card__drinks {
+  display: flex;
+  flex-direction: column;
+}
+
+.kds-card__no-drinks {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--kds-muted);
+  padding: 6px 10px 0;
+}
+
+.kds-card__food-rule {
+  height: 0;
+  margin: 6px 10px;
+  border: none;
+  border-top: 1px dashed rgba(0, 0, 0, 0.15);
+}
+
+.kds-card__food {
+  padding: 8px 10px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kds-card__empty-items {
+  padding: 12px 10px;
+  font-size: 11px;
+  color: var(--kds-muted);
+}
+
+/* Drink line */
+.kds-drink-line {
+  display: block;
+  padding: 10px 10px;
+  color: var(--kds-text-dark);
+}
+
+.kds-card__drinks .kds-drink-line + .kds-drink-line {
+  border-top: 0.5px solid rgba(0, 0, 0, 0.08);
+}
+
+.kds-drink-line--milk-whole {
+  background: var(--kds-milk-whole-bg);
+  color: var(--kds-milk-whole-text);
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.05);
+}
+
+.kds-drink-line--milk-semi {
+  background: var(--kds-milk-semi-bg);
+  color: var(--kds-milk-semi-text);
+}
+
+.kds-drink-line--milk-oat {
+  background: var(--kds-milk-oat-bg);
+  color: var(--kds-milk-oat-text);
+}
+
+.kds-drink-line--milk-almond {
+  background: var(--kds-milk-almond-bg);
+  color: var(--kds-milk-almond-text);
+}
+
+.kds-drink-line--milk-soy {
+  background: var(--kds-milk-soy-bg);
+  color: var(--kds-milk-soy-text);
+}
+
+.kds-drink-line--milk-coconut {
+  background: var(--kds-milk-coconut-bg);
+  color: var(--kds-milk-coconut-text);
+}
+
+.kds-bean--ho {
+  background: rgba(0, 0, 0, 0.08);
+  color: inherit;
+}
+
+.kds-drink-line--milk-soy .kds-bean--ho {
+  background: rgba(0, 0, 0, 0.12);
+  color: inherit;
+}
+
+.kds-bean--dc {
+  background: #5c5488;
+  color: #f4f3fb;
+}
+
+.kds-bean--gu {
+  background: #9a7349;
+  color: #faf6f0;
+}
+
+.kds-bean--et {
+  background: #3d7a68;
+  color: #f0faf7;
+}
+
+.kds-drink-line__stack {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.kds-drink-line__top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.kds-drink-line__name-block {
+  position: relative;
+  min-width: 0;
+  flex: 1;
+  padding: 1px 0 0 calc(var(--kds-bean-size) + 6px);
+}
+
+.kds-drink-line--no-bean-badge .kds-drink-line__name-block {
+  padding: 0;
+}
+
+.kds-drink-line--no-bean-badge .kds-drink-line__stack > .kds-drink-line__chips,
+.kds-drink-line--no-bean-badge .kds-drink-line__stack > .kds-drink-line__note,
+.kds-drink-line--no-bean-badge .kds-drink-line__stack > .kds-drink-line__allergy {
+  padding-left: 0;
+}
+
+.kds-drink-line__badge {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--kds-bean-size);
+  height: var(--kds-bean-size);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+  border: none;
+  box-sizing: border-box;
+}
+
+.kds-drink-line__name-milk {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  width: 100%;
+}
+
+.kds-drink-line__name-milk .kds-drink-line__name {
+  flex: 1;
+  min-width: 0;
+}
+
+.kds-drink-line__name {
+  font-size: 15px;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.25;
+}
+
+.kds-milk-icon-wrap {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+}
+
+.kds-milk-icon {
+  display: block;
+  width: 24px;
+  height: 24px;
+}
+
+.kds-drink-line__qty {
+  font-size: 22px;
+  font-weight: 700;
+  opacity: 0.85;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.kds-drink-line__stack > .kds-drink-line__chips,
+.kds-drink-line__stack > .kds-drink-line__note,
+.kds-drink-line__stack > .kds-drink-line__allergy {
+  padding-left: calc(var(--kds-bean-size) + 6px);
+}
+
+.kds-drink-line__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+}
+
+.kds-chip {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border: 0.5px solid rgba(0, 0, 0, 0.2);
+  color: inherit;
+}
+
+.kds-drink-line--milk-whole .kds-chip,
+.kds-drink-line--milk-semi .kds-chip,
+.kds-drink-line--milk-oat .kds-chip,
+.kds-drink-line--milk-almond .kds-chip,
+.kds-drink-line--milk-coconut .kds-chip,
+.kds-drink-line--milk-soy .kds-chip {
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.kds-chip--square {
+  border-radius: 3px;
+}
+
+.kds-chip--round {
+  border-radius: 10px;
+}
+
+.kds-drink-line__note {
+  font-size: 10px;
+  font-style: italic;
+  opacity: 0.65;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.kds-drink-line__allergy {
+  background: var(--kds-allergy);
+  color: #fff;
+  font-weight: 700;
+  font-size: 10px;
+  border-radius: 4px;
+  padding: 3px 7px;
+  margin-top: 3px;
+}
+
+/* Food */
+.kds-food-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  min-height: 1.35em;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--kds-text-dark);
+  line-height: 1.3;
+}
+
+.kds-food-line__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.88;
+}
+
+.kds-food-line__qty {
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+  line-height: 1;
+  color: var(--kds-muted);
+}
+
+/* Completed toggle */
+.kds-drink-line.completed .kds-drink-line__name,
+.kds-drink-line.completed .kds-drink-line__qty,
+.kds-drink-line.completed .kds-chip,
+.kds-drink-line.completed .kds-drink-line__note,
+.kds-drink-line.completed .kds-drink-line__badge,
+.kds-drink-line.completed .kds-milk-icon-wrap,
+.kds-food-line.completed .kds-food-line__name,
+.kds-food-line.completed .kds-food-line__qty {
+  text-decoration: line-through;
+  opacity: 0.45;
+}
+
+/* Footer */
+.kds-card__footer {
+  padding: 6px 10px;
+  border-top: 0.5px solid var(--kds-card-border);
+  flex-shrink: 0;
+}
+
+.kds-callout-btn {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  background: var(--kds-btn-default-bg);
+  color: white;
+  font-family: inherit;
+  transition: filter 0.12s ease, background 0.12s ease;
+}
+
+.kds-callout-btn:hover {
+  filter: brightness(1.06);
+}
+
+.kds-callout-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.kds-callout-btn--urgent {
+  background: var(--kds-btn-urgent-bg);
+  color: var(--kds-btn-urgent-fg);
+}
+
+.kds-callout-btn__left {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.65;
+  color: inherit;
+}
+
+.kds-callout-btn__name {
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 1;
+  filter: blur(0px);
+  transition: opacity 0.12s ease, filter 0.12s ease;
+  max-width: 58%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-transform: capitalize;
+  text-align: right;
+}
+
+.kds-callout-btn--revealed .kds-callout-btn__name {
+  opacity: 1;
+  filter: none;
+}

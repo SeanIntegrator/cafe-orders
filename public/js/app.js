@@ -66,7 +66,7 @@ socket.on('squareOrderClosed', (payload) => {
 
 // Toggle completion state when clicking a line item
 document.getElementById('board-container').addEventListener('click', (event) => {
-  const line = event.target.closest('.line-item');
+  const line = event.target.closest('[data-kds-line]');
   if (!line) return;
   line.classList.toggle('completed');
 });

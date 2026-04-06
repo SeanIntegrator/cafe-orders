@@ -1,0 +1,35 @@
+/* KDS Concept C — design tokens (brief v8) */
+
+:root {
+  --kds-board-bg: #eeece6;
+  --kds-card-bg: #ffffff;
+  --kds-card-border: #ddddd8;
+  --kds-card-radius: 8px;
+  --kds-bean-size: 26px;
+  --kds-muted: #888780;
+  --kds-text-dark: #2c2c2a;
+  --kds-allergy: #c0392b;
+  --kds-btn-default-bg: #dfe2d4;
+  --kds-btn-default-fg: #2c2c2a;
+  --kds-btn-urgent-bg: #f0c9c9;
+  --kds-btn-urgent-fg: #6b2222;
+  --kds-timer-green-bg: #eaf3de;
+  --kds-timer-green-fg: #3b6d11;
+  --kds-timer-amber-bg: #faeeda;
+  --kds-timer-amber-fg: #854f0b;
+  --kds-timer-red-bg: #fcebeb;
+  --kds-timer-red-fg: #a32d2d;
+  /* Milk lines — soft tints for long-shift readability */
+  --kds-milk-whole-bg: #faf6ee;
+  --kds-milk-whole-text: #2c2c2a;
+  --kds-milk-semi-bg: #dbeede;
+  --kds-milk-semi-text: #1f4a24;
+  --kds-milk-oat-bg: #d8e2f0;
+  --kds-milk-oat-text: #243352;
+  --kds-milk-almond-bg: #fce4ec;
+  --kds-milk-almond-text: #5c1838;
+  --kds-milk-soy-bg: #dfe9e0;
+  --kds-milk-soy-text: #1e3d22;
+  --kds-milk-coconut-bg: #d9eef6;
+  --kds-milk-coconut-text: #1a3d4d;
+}

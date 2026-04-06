@@ -38,7 +38,7 @@ export async function handleDone(id) {
     dismissOrder(id);
     return;
   }
-  const btn = document.querySelector(`#card-${id} .dismiss-btn`);
+  const btn = document.querySelector(`#card-${id} .kds-callout-btn`);
   if (btn) btn.disabled = true;
 
   const record = orders[id];

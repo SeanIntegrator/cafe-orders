@@ -7,8 +7,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Funnel+Sans:wght@400;500;600;700&family=Tangerine:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/kds-tokens.css">
   <link rel="stylesheet" href="css/layout.css">
-  <link rel="stylesheet" href="css/card.css">
+  <link rel="stylesheet" href="css/kds-board.css">
+  <link rel="stylesheet" href="css/kds-card.css">
   <link rel="stylesheet" href="css/modal.css">
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/history-modal.css">
@@ -35,16 +37,7 @@
     <div class="icon">🫙</div>
     <span>Waiting for orders...</span>
   </div>
-  <div class="board-rows hidden" id="board-rows">
-    <section class="board-row">
-      <h2 class="board-row-label takeaway">Takeaway</h2>
-      <div class="board-row-scroll" id="board-takeaway"></div>
-    </section>
-    <section class="board-row">
-      <h2 class="board-row-label eat-in">Eat in</h2>
-      <div class="board-row-scroll" id="board-eat-in"></div>
-    </section>
-  </div>
+  <div class="kds-board-grid hidden" id="board-grid" role="list" aria-label="Active orders"></div>
 </div>
 
 <div class="modal-overlay hidden" id="history-modal-overlay">
