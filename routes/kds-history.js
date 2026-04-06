@@ -5,6 +5,7 @@
 const express = require('express');
 const pool = require('../db');
 const { mapItemRow } = require('../lib/orders-db');
+const { searchAllOrders } = require('../lib/square');
 
 /** Match RecallContext: barista-facing history (excludes unpaid pending). */
 const KDS_HISTORY_STATUSES = ['confirmed', 'ready', 'completed'];
@@ -22,6 +23,8 @@ module.exports = function createKdsHistoryRouter() {
       since = new Date(now.getTime() - 60 * 60 * 1000);
     } else if (period === 'week') {
       since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    } else if (period === 'all') {
+      since = new Date('2020-01-01T00:00:00Z');
     } else {
       const d = new Date(now);
       d.setUTCHours(0, 0, 0, 0);
@@ -77,6 +80,45 @@ module.exports = function createKdsHistoryRouter() {
       res.json({ ok: true, orders: payload, period, since: since.toISOString() });
     } catch (err) {
       console.error('GET /api/kds/orders error:', err);
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  /**
+   * GET /api/square/orders
+   * Fetch raw Square orders — all types, statuses, dates. Useful for debugging
+   * and the recall feature.
+   * Query params:
+   *   states  - comma-separated Square states (default: all)
+   *   from    - ISO 8601 created_at lower bound (default: 30 days ago)
+   *   to      - ISO 8601 created_at upper bound
+   *   limit   - max results per page (default: 100, max: 500)
+   *   cursor  - pagination cursor from previous response
+   */
+  router.get('/api/square/orders', async (req, res) => {
+    try {
+      const states = req.query.states
+        ? req.query.states.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean)
+        : undefined;
+
+      const limit = Math.min(parseInt(req.query.limit ?? '100', 10) || 100, 500);
+      const cursor = req.query.cursor || undefined;
+
+      // Default to last 30 days if no lower bound supplied
+      const defaultFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const createdAfter = req.query.from || defaultFrom;
+      const createdBefore = req.query.to || undefined;
+
+      const result = await searchAllOrders({ states, createdAfter, createdBefore, limit, cursor });
+
+      res.json({
+        ok: true,
+        orders: result.orders,
+        cursor: result.cursor ?? null,
+        count: result.orders.length,
+      });
+    } catch (err) {
+      console.error('GET /api/square/orders error:', err);
       res.status(500).json({ ok: false, error: err.message });
     }
   });
