@@ -91,7 +91,7 @@ app.use('/api/auth', authRouter);
 app.use(createOrdersRouter(io));
 app.use(createCatalogRouter(io));
 app.use(createCustomerOrdersRouter(io));
-app.use(createKdsHistoryRouter());
+app.use(createKdsHistoryRouter(io));
 app.use(createFeedbackRouter());
 app.use('/api/stripe', createCheckoutRouter(io));
 

@@ -1,8 +1,12 @@
 /**
  * KDS — recent orders modal. Supports two sources:
- *   db     → GET /api/kds/orders  (web_app / WhatsApp orders from Postgres)
+ *   db     → GET /api/kds/orders  (only order_source web_app / whatsapp from Postgres)
  *   square → GET /api/square/orders (all Square orders incl. POS)
  */
+
+import { orders } from './state.js';
+import { addOrUpdateOrder } from './board.js';
+import { showToast } from './ui.js';
 
 const overlay = document.getElementById('history-modal-overlay');
 const closeBtn = document.getElementById('history-modal-close');
@@ -62,6 +66,48 @@ function renderModifiers(mods) {
 // DB orders (web_app / Postgres)
 // ---------------------------------------------------------------------------
 
+function recallButtonHtml(squareId) {
+  if (!squareId) return '';
+  const esc = escapeHtml(squareId);
+  return `<button type="button" class="history-recall-btn" data-recall-square-id="${esc}" aria-label="Recall order to board">Recall</button>`;
+}
+
+function showRecallForDb(order) {
+  if (String(order.status || '').toLowerCase() !== 'completed') return false;
+  const sq = order.square_order_id;
+  if (!sq) return false;
+  if (orders[sq]) return false;
+  return true;
+}
+
+function showRecallForSquare(order) {
+  if (order.state !== 'COMPLETED') return false;
+  if (!order.id) return false;
+  if (orders[order.id]) return false;
+  return true;
+}
+
+async function recallOrderToBoard(squareOrderId, triggerBtn) {
+  if (triggerBtn) triggerBtn.disabled = true;
+  try {
+    const res = await fetch('/api/kds/recall', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ squareOrderId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) {
+      showToast(data.error || 'Could not recall order', 'error');
+      return;
+    }
+    addOrUpdateOrder(data.order, { createdAtMs: data.kdsRecallResetAtMs });
+  } catch (e) {
+    showToast('Network error', 'error');
+  } finally {
+    if (triggerBtn) triggerBtn.disabled = false;
+  }
+}
+
 function dbOrderChannelLabel(source) {
   const s = String(source || '').toLowerCase();
   if (s === 'web_app' || s === 'whatsapp') return 'App order';
@@ -105,6 +151,7 @@ function renderDbOrder(order) {
     : '';
   const channel = dbOrderChannelLabel(order.order_source);
   const stLabel = dbStatusLabel(order.status);
+  const recallHtml = showRecallForDb(order) ? recallButtonHtml(order.square_order_id) : '';
 
   return `
     <article class="history-order-card">
@@ -114,7 +161,10 @@ function renderDbOrder(order) {
           <div class="history-order-sub">${formatWhen(order.created_at)} · ${escapeHtml(channel)}</div>
         </div>
         <div class="history-order-right">
-          <span class="badge ${dbStatusBadgeClass(order.status)}">${escapeHtml(stLabel)}</span>
+          <div class="history-order-badges">
+            <span class="badge ${dbStatusBadgeClass(order.status)}">${escapeHtml(stLabel)}</span>
+            ${recallHtml}
+          </div>
           <span class="history-order-total">${formatMoney(order.total_amount)}</span>
         </div>
       </div>
@@ -140,6 +190,7 @@ function periodToSquareFrom(period) {
   const now = Date.now();
   if (period === 'hour') return new Date(now - 60 * 60 * 1000).toISOString();
   if (period === 'week') return new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+  if (period === '30d') return new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
   if (period === 'all') return '2020-01-01T00:00:00Z';
   // today — start of current UTC day
   const d = new Date(now);
@@ -220,6 +271,7 @@ function renderSquareOrder(order) {
   const stateLabel = squareStateLabel(order.state);
   const badgeClass = squareStateBadgeClass(order.state);
   const orderId = order.id ? `<span class="history-square-id" title="Square order ID">#${escapeHtml(order.id.slice(-6))}</span>` : '';
+  const recallHtml = showRecallForSquare(order) ? recallButtonHtml(order.id) : '';
 
   return `
     <article class="history-order-card">
@@ -229,7 +281,10 @@ function renderSquareOrder(order) {
           <div class="history-order-sub">${formatWhen(order.created_at)} · ${escapeHtml(sourceLbl)} · ${escapeHtml(fulfillLbl)}</div>
         </div>
         <div class="history-order-right">
-          <span class="badge ${badgeClass}">${escapeHtml(stateLabel)}</span>
+          <div class="history-order-badges">
+            <span class="badge ${badgeClass}">${escapeHtml(stateLabel)}</span>
+            ${recallHtml}
+          </div>
           ${total != null ? `<span class="history-order-total">${formatMoney(total)}</span>` : ''}
         </div>
       </div>
@@ -377,4 +432,13 @@ periodButtons.forEach((btn) => {
 
 periodButtons.forEach((btn) => {
   if (btn.getAttribute('data-history-period') === 'today') btn.classList.add('active');
+});
+
+listEl?.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-recall-square-id]');
+  if (!btn || !listEl.contains(btn)) return;
+  e.preventDefault();
+  const id = btn.getAttribute('data-recall-square-id');
+  if (!id) return;
+  recallOrderToBoard(id, btn);
 });

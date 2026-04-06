@@ -4,6 +4,9 @@ import { orders, modifierSortOrder } from './state.js';
 import { showToast } from './ui.js';
 import { dismissOrder } from './board.js';
 
+/** Same idea as board wait timers (`createdAt`); not the green/amber/red thresholds in board.js. */
+const DISMISS_OLD_WAIT_MS = 30 * 60 * 1000;
+
 export async function loadModifierCategories() {
   try {
     const res = await fetch('/api/modifier-categories');
@@ -71,6 +74,29 @@ export async function handleDone(id) {
   } catch (e) {
     showToast('Network error', 'error');
     if (btn) btn.disabled = false;
+  }
+}
+
+/**
+ * Call out / complete every order whose on-board wait time is at least 30 minutes
+ * (same basis as the red timer on each card).
+ */
+export async function dismissOrdersPastWaitThreshold() {
+  const now = Date.now();
+  const ids = Object.entries(orders)
+    .filter(([, data]) => now - data.createdAt >= DISMISS_OLD_WAIT_MS)
+    .sort((a, b) => a[1].createdAt - b[1].createdAt)
+    .map(([id]) => id);
+  if (ids.length === 0) {
+    showToast('No orders over 30 minutes', 'info');
+    return;
+  }
+  if (!window.confirm(`Dismiss ${ids.length} order(s) waiting over 30 minutes?`)) {
+    return;
+  }
+  for (const id of ids) {
+    if (!orders[id]) continue;
+    await handleDone(id);
   }
 }
 

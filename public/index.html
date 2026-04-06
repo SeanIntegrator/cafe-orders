@@ -28,6 +28,7 @@
   </div>
   <div class="header-right">
     <span class="order-count" id="order-count">0 active</span>
+    <button type="button" class="demo-btn demo-btn--dismiss-old" id="dismiss-old-orders-btn" title="Mark done every order whose timer is over 30:00" aria-label="Dismiss all orders waiting over 30 minutes">Dismiss old (30m+)</button>
     <button type="button" class="demo-btn" id="history-recall-btn" title="Recent orders from the app (saved here for reference)">Recent orders</button>
   </div>
 </header>
@@ -54,6 +55,7 @@
       <button type="button" data-history-period="hour">Last hour</button>
       <button type="button" data-history-period="today">Today</button>
       <button type="button" data-history-period="week">This week</button>
+      <button type="button" data-history-period="30d">Last 30 days</button>
       <button type="button" data-history-period="all">All time</button>
     </div>
     <div class="history-modal-body" id="history-modal-list"></div>

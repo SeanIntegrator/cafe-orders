@@ -169,15 +169,28 @@ export function removeCardSilently(id) {
   updateCount();
 }
 
-export function addOrUpdateOrder(order) {
+/**
+ * @param {object} order
+ * @param {{ createdAtMs?: number, resetTimerFromSquare?: boolean }} [options]
+ *   - createdAtMs: KDS timer epoch (e.g. recall).
+ *   - resetTimerFromSquare: if true and updating an existing card, use Square `created_at` instead of keeping the on-board timer.
+ * Session rule: timer stays stable across poller / loadLiveOrders unless recall passes createdAtMs or resetTimerFromSquare.
+ */
+export function addOrUpdateOrder(order, options = {}) {
   if (!order?.id) return;
   const isDemo = String(order.id || '').startsWith('demo-');
   if (!isDemo && !shouldShowOrderOnKds(order)) return;
-  if (orders[order.id]) {
+  const prev = orders[order.id];
+  if (prev) {
     removeCardSilently(order.id);
   }
   let createdAt = Date.now();
-  if (order.created_at) {
+  const overrideMs = options.createdAtMs;
+  if (typeof overrideMs === 'number' && !Number.isNaN(overrideMs)) {
+    createdAt = overrideMs;
+  } else if (prev && !options.resetTimerFromSquare) {
+    createdAt = prev.createdAt;
+  } else if (order.created_at) {
     const t = new Date(order.created_at).getTime();
     if (!Number.isNaN(t)) createdAt = t;
   }

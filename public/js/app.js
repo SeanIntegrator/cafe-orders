@@ -1,6 +1,6 @@
 /** Entry point — socket setup, init sequence, and demo data. */
 
-import { loadModifierCategories, loadLiveOrders } from './api.js';
+import { loadModifierCategories, loadLiveOrders, dismissOrdersPastWaitThreshold } from './api.js';
 import { addOrUpdateOrder, updateTimers, dismissOrder } from './board.js';
 import { setConnectionStatus } from './ui.js';
 import './history.js';
@@ -44,7 +44,11 @@ socket.on('new-order', (payload) => {
   const list = Array.isArray(payload) ? payload : [payload];
   list.forEach((item) => {
     const order = item?.order ?? item;
-    if (order?.id) addOrUpdateOrder(order);
+    if (!order?.id) return;
+    const reset = item?.kdsRecallResetAtMs;
+    const opts =
+      typeof reset === 'number' && !Number.isNaN(reset) ? { createdAtMs: reset } : undefined;
+    addOrUpdateOrder(order, opts);
   });
 });
 
@@ -72,6 +76,17 @@ document.getElementById('board-container').addEventListener('click', (event) => 
 });
 
 setInterval(updateTimers, 1000);
+
+document.getElementById('dismiss-old-orders-btn')?.addEventListener('click', async () => {
+  const btn = document.getElementById('dismiss-old-orders-btn');
+  if (!btn) return;
+  btn.disabled = true;
+  try {
+    await dismissOrdersPastWaitThreshold();
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 // Modifier order for milk chips on cards, then live Square orders only
 loadModifierCategories().then(() => loadLiveOrders(addOrUpdateOrder));

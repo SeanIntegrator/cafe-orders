@@ -78,6 +78,16 @@
   cursor: not-allowed;
 }
 
+.demo-btn--dismiss-old {
+  border-color: rgba(180, 120, 60, 0.45);
+  color: #b8956a;
+}
+.demo-btn--dismiss-old:hover {
+  border-color: rgba(200, 140, 80, 0.7);
+  color: var(--text);
+  background: rgba(180, 120, 60, 0.1);
+}
+
 .demo-toast {
   position: fixed;
   bottom: 20px;
@@ -92,6 +102,7 @@
 }
 .demo-toast.success { background: var(--eat-in); color: var(--bg); }
 .demo-toast.error { background: var(--takeaway); color: var(--bg); }
+.demo-toast.info { background: var(--surface-alt); color: var(--text); border: 1px solid var(--border); }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 

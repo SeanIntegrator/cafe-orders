@@ -176,6 +176,41 @@
   flex-shrink: 0;
 }
 
+.history-order-badges {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.history-recall-btn {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--paid);
+  background: rgba(164, 172, 131, 0.12);
+  color: var(--paid);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+}
+
+.history-recall-btn:hover {
+  background: rgba(164, 172, 131, 0.22);
+  color: var(--text);
+  border-color: var(--muted);
+}
+
+.history-recall-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
 .history-order-total {
   font-weight: 700;
   font-size: 1.1rem;
