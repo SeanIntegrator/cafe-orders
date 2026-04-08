@@ -8,7 +8,6 @@ import {
   partitionLineItems,
 } from './kds-order-model.js';
 
-const MULT = '\u00D7';
 const DEFAULT_SHOTS = 2;
 
 /**
@@ -108,6 +107,7 @@ function renderFlowDrinkRow(model) {
   return `
     <div class="flow-row" data-kds-line="drink">
       <div class="flow-row__base">
+        <span class="flow-row__qty" aria-label="Quantity ${model.qty}">${escapeHtml(String(model.qty))}</span>
         ${badgeSlotHtml}
         <div class="flow-row__title">
           <div class="flow-row__title-stack">
@@ -118,7 +118,6 @@ function renderFlowDrinkRow(model) {
       </div>
       ${prepHtml}
       <div class="flow-row__detail">
-        <span class="flow-row__qty">${MULT}${model.qty}</span>
         ${noteHtml}
         ${allergyHtml}
       </div>
@@ -133,6 +132,7 @@ function renderFlowFoodRow(model) {
   return `
     <div class="flow-row" data-kds-line="food">
       <div class="flow-row__base">
+        <span class="flow-row__qty" aria-label="Quantity ${model.qty}">${escapeHtml(String(model.qty))}</span>
         <div class="flow-row__badge-slot" aria-hidden="true"></div>
         <div class="flow-row__title">
           <div class="flow-row__title-stack">
@@ -141,9 +141,7 @@ function renderFlowFoodRow(model) {
         </div>
       </div>
       <div class="flow-row__prep">${prepHtml}</div>
-      <div class="flow-row__detail">
-        <span class="flow-row__qty">${MULT}${model.qty}</span>
-      </div>
+      <div class="flow-row__detail"></div>
     </div>`;
 }
 
@@ -209,16 +207,17 @@ export function renderFlowOrder(order, onComplete) {
       ? foodItems.map((it) => renderFlowFoodRow(buildFlowFoodModel(it, modifierSortOrder))).join('')
       : '';
 
-  const headerRight = `
-    <div class="flow-order__header-right">
+  const headerInner = `
+    <div class="flow-order__header-left">
       <span class="flow-order__service">${escapeHtml(service)}</span>
-      <span class="flow-order__sep" aria-hidden="true"> | </span>
+    </div>
+    <div class="flow-order__header-right">
       <span class="flow-timer flow-timer--green" id="flow-timer-${order.id}" aria-live="polite">0:00</span>
     </div>`;
 
   article.innerHTML = `
     <div class="flow-order__header" role="button" tabindex="0" aria-label="Call out order and mark done">
-      ${headerRight}
+      ${headerInner}
     </div>
     <div class="flow-order__body">
       ${drinksHtml}
