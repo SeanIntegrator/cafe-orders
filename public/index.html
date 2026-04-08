@@ -14,31 +14,57 @@
   <link rel="stylesheet" href="css/modal.css">
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/history-modal.css">
+  <link rel="stylesheet" href="css/kds-flow.css">
 </head>
 <body>
 
-<header>
-  <h1>
-    <img src="logo.png" alt="Clay and Bean logo" class="brand-mark" />
-    Clay & Bean <span class="flow">Flow</span>
-  </h1>
-  <div class="connection-status live-dot connection-status--reconnecting" id="connection-status" role="status" aria-live="polite">
-    <span class="status-dot status-dot--reconnecting" id="connection-status-dot" aria-hidden="true"></span>
-    <span class="connection-status-label" id="connection-status-label">Reconnecting…</span>
+<header class="kds-header">
+  <div class="header-status">
+    <span class="order-count" id="order-count">0 active</span>
+    <div class="connection-status live-dot connection-status--reconnecting" id="connection-status" role="status" aria-live="polite">
+      <span class="status-dot status-dot--reconnecting" id="connection-status-dot" aria-hidden="true"></span>
+      <span class="connection-status-label" id="connection-status-label">Reconnecting…</span>
+    </div>
   </div>
   <div class="header-right">
-    <span class="order-count" id="order-count">0 active</span>
-    <button type="button" class="demo-btn demo-btn--dismiss-old" id="dismiss-old-orders-btn" title="Mark done every order whose timer is over 30:00" aria-label="Dismiss all orders waiting over 30 minutes">Dismiss old (30m+)</button>
-    <button type="button" class="demo-btn" id="history-recall-btn" title="Recent orders from the app (saved here for reference)">Recent orders</button>
+    <button type="button" class="demo-btn demo-btn--primary header-recall-btn" id="instant-recall-btn" aria-label="Recall most recently dismissed order" title="Recall the most recently dismissed order">
+      <span class="header-recall-btn__icon" aria-hidden="true">↶</span>
+      <span>Recall</span>
+    </button>
+    <button type="button" class="header-menu-btn" id="header-menu-btn" aria-label="Open menu" aria-controls="header-drawer-overlay" aria-expanded="false">☰</button>
   </div>
 </header>
 
 <div id="board-container">
   <div class="board-empty-state" id="empty-state">
-    <div class="icon">🫙</div>
-    <span>Waiting for orders...</span>
+    <div class="board-empty-state__brand">
+      <img src="logo.png" alt="Clay and Bean logo" class="brand-mark board-empty-state__logo" />
+      <div class="board-empty-state__title">Clay & Bean <span class="flow">Flow</span></div>
+    </div>
+    <span class="board-empty-state__hint">Waiting for orders...</span>
   </div>
   <div class="kds-board-grid hidden" id="board-grid" role="list" aria-label="Active orders"></div>
+  <div class="flow-board-grid hidden" id="flow-grid" role="list" aria-label="Active orders flow view"></div>
+</div>
+
+<div class="modal-overlay hidden header-drawer-overlay" id="header-drawer-overlay">
+  <aside class="header-drawer" role="dialog" aria-modal="true" aria-labelledby="header-drawer-title">
+    <div class="header-drawer__header">
+      <h2 id="header-drawer-title">Menu</h2>
+      <button type="button" class="order-modal-close" id="header-drawer-close" aria-label="Close menu">&times;</button>
+    </div>
+    <div class="header-drawer__body">
+      <div class="header-drawer__view-row">
+        <span class="header-drawer__field-label" id="view-type-label">View type</span>
+        <div class="view-toggle view-toggle--drawer" id="view-toggle" role="group" aria-labelledby="view-type-label">
+          <button type="button" class="view-toggle__btn active" data-view="cards">Cards</button>
+          <button type="button" class="view-toggle__btn" data-view="flow">Flow</button>
+        </div>
+      </div>
+      <button type="button" class="demo-btn demo-btn--dismiss-old header-drawer__btn" id="dismiss-old-orders-btn" title="Mark done every order whose timer is over 30:00" aria-label="Dismiss all orders waiting over 30 minutes">Dismiss old (30m+)</button>
+      <button type="button" class="demo-btn header-drawer__btn" id="history-recall-btn" title="Recent orders from the app (saved here for reference)">Recent orders</button>
+    </div>
+  </aside>
 </div>
 
 <div class="modal-overlay hidden" id="history-modal-overlay">

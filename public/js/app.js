@@ -1,11 +1,73 @@
 /** Entry point — socket setup, init sequence, and demo data. */
 
-import { loadModifierCategories, loadLiveOrders, dismissOrdersPastWaitThreshold } from './api.js';
-import { addOrUpdateOrder, updateTimers, dismissOrder } from './board.js';
-import { setConnectionStatus } from './ui.js';
+import {
+  loadModifierCategories,
+  loadLiveOrders,
+  dismissOrdersPastWaitThreshold,
+  recallLatestDismissedOrder,
+} from './api.js';
+import { addOrUpdateOrder, updateTimers, dismissOrder, applyViewMode } from './board.js';
+import { setConnectionStatus, showToast } from './ui.js';
+import { setViewMode, viewMode } from './state.js';
 import './history.js';
 
 setConnectionStatus('reconnecting');
+
+const drawerOverlay = document.getElementById('header-drawer-overlay');
+const menuBtn = document.getElementById('header-menu-btn');
+const drawerCloseBtn = document.getElementById('header-drawer-close');
+
+function closeHeaderDrawer() {
+  if (!drawerOverlay || !menuBtn) return;
+  drawerOverlay.classList.add('hidden');
+  menuBtn.setAttribute('aria-expanded', 'false');
+}
+
+function openHeaderDrawer() {
+  if (!drawerOverlay || !menuBtn) return;
+  drawerOverlay.classList.remove('hidden');
+  menuBtn.setAttribute('aria-expanded', 'true');
+}
+
+function syncViewToggleUi() {
+  document.querySelectorAll('#view-toggle .view-toggle__btn').forEach((btn) => {
+    btn.classList.toggle('active', btn.getAttribute('data-view') === viewMode);
+  });
+}
+
+document.getElementById('view-toggle')?.addEventListener('click', (event) => {
+  const btn = event.target.closest('[data-view]');
+  if (!btn) return;
+  const v = btn.getAttribute('data-view');
+  if (v !== 'cards' && v !== 'flow') return;
+  setViewMode(v);
+  applyViewMode();
+  syncViewToggleUi();
+  closeHeaderDrawer();
+});
+
+menuBtn?.addEventListener('click', () => {
+  const isOpen = !drawerOverlay?.classList.contains('hidden');
+  if (isOpen) closeHeaderDrawer();
+  else openHeaderDrawer();
+});
+
+drawerCloseBtn?.addEventListener('click', closeHeaderDrawer);
+
+drawerOverlay?.addEventListener('click', (event) => {
+  if (event.target === drawerOverlay) closeHeaderDrawer();
+});
+
+document.getElementById('history-recall-btn')?.addEventListener('click', () => {
+  closeHeaderDrawer();
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeHeaderDrawer();
+});
+
+applyViewMode();
+syncViewToggleUi();
 
 /* global io */
 const socket = io({
@@ -83,6 +145,23 @@ document.getElementById('dismiss-old-orders-btn')?.addEventListener('click', asy
   btn.disabled = true;
   try {
     await dismissOrdersPastWaitThreshold();
+  } finally {
+    btn.disabled = false;
+    closeHeaderDrawer();
+  }
+});
+
+document.getElementById('instant-recall-btn')?.addEventListener('click', async () => {
+  const btn = document.getElementById('instant-recall-btn');
+  if (!btn) return;
+  btn.disabled = true;
+  try {
+    const result = await recallLatestDismissedOrder();
+    if (!result.ok) {
+      showToast(result.error || 'No recallable completed orders', 'info');
+      return;
+    }
+    addOrUpdateOrder(result.order, { createdAtMs: result.kdsRecallResetAtMs });
   } finally {
     btn.disabled = false;
   }

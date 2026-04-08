@@ -10,41 +10,33 @@ body {
   flex-direction: column;
 }
 
-header {
-  padding: 18px 28px;
+.kds-header {
+  padding: 10px 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
-header h1 {
-  display: flex;
+.header-status {
+  display: inline-flex;
   align-items: center;
   gap: 10px;
-  font-family: 'Funnel Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  font-size: 1.9rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--text);
-}
-
-header h1 .flow {
-  font-family: 'Tangerine', cursive;
-  font-weight: 700;
-  font-size: 2.1rem;
+  min-width: 0;
 }
 
 .header-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
 .order-count {
-  font-size: 1rem;
+  font-size: 0.88rem;
+  font-weight: 600;
   color: var(--muted);
-  letter-spacing: 0.05em;
+  letter-spacing: 0.03em;
 }

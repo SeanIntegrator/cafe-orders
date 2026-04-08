@@ -1,6 +1,6 @@
 /** API fetch wrappers for communication with the Express backend. */
 
-import { orders, modifierSortOrder } from './state.js';
+import { orders, modifierSortOrder, serviceModifierOptionIds } from './state.js';
 import { showToast } from './ui.js';
 import { dismissOrder } from './board.js';
 
@@ -13,8 +13,14 @@ export async function loadModifierCategories() {
     const data = await res.json().catch(() => ({}));
     if (data.ok && Array.isArray(data.categories)) {
       modifierSortOrder.clear();
+      serviceModifierOptionIds.clear();
       data.categories.forEach((cat, idx) => {
-        (cat.optionIds || []).forEach((oid) => modifierSortOrder.set(oid, idx));
+        const catName = String(cat.name || '');
+        const isServiceList = /\bservice\b/i.test(catName);
+        (cat.optionIds || []).forEach((oid) => {
+          modifierSortOrder.set(oid, idx);
+          if (isServiceList) serviceModifierOptionIds.add(oid);
+        });
       });
     }
   } catch (e) {
@@ -42,7 +48,13 @@ export async function handleDone(id) {
     return;
   }
   const btn = document.querySelector(`#card-${id} .kds-callout-btn`);
+  const flowHeader = document.querySelector(`#flow-order-${id} .flow-order__header`);
   if (btn) btn.disabled = true;
+  if (flowHeader) {
+    flowHeader.setAttribute('aria-disabled', 'true');
+    flowHeader.style.pointerEvents = 'none';
+    flowHeader.style.opacity = '0.6';
+  }
 
   const record = orders[id];
   const order = record?.order;
@@ -70,10 +82,20 @@ export async function handleDone(id) {
     } else {
       showToast(data.error || 'Could not complete order', 'error');
       if (btn) btn.disabled = false;
+      if (flowHeader) {
+        flowHeader.removeAttribute('aria-disabled');
+        flowHeader.style.pointerEvents = '';
+        flowHeader.style.opacity = '';
+      }
     }
   } catch (e) {
     showToast('Network error', 'error');
     if (btn) btn.disabled = false;
+    if (flowHeader) {
+      flowHeader.removeAttribute('aria-disabled');
+      flowHeader.style.pointerEvents = '';
+      flowHeader.style.opacity = '';
+    }
   }
 }
 
@@ -97,6 +119,27 @@ export async function dismissOrdersPastWaitThreshold() {
   for (const id of ids) {
     if (!orders[id]) continue;
     await handleDone(id);
+  }
+}
+
+export async function recallLatestDismissedOrder() {
+  try {
+    const res = await fetch('/api/kds/recall-next', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) {
+      return { ok: false, error: data.error || 'No recallable completed orders' };
+    }
+    return {
+      ok: true,
+      order: data.order,
+      kdsRecallResetAtMs: data.kdsRecallResetAtMs,
+      squareOrderId: data.squareOrderId,
+    };
+  } catch (_e) {
+    return { ok: false, error: 'Network error' };
   }
 }
 

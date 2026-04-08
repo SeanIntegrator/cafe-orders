@@ -17,6 +17,50 @@ const KDS_HISTORY_STATUSES = ['confirmed', 'ready', 'completed'];
  */
 module.exports = function createKdsHistoryRouter(io) {
   const router = express.Router();
+  const RECALLABLE_SOURCES = ['web_app', 'whatsapp', 'in_person'];
+
+  async function recallBySquareOrderId(squareOrderId) {
+    const { rows: dbRows } = await pool.query(
+      `SELECT id, square_order_id, status, order_source FROM orders WHERE square_order_id = $1`,
+      [squareOrderId]
+    );
+    const dbRow = dbRows[0];
+    if (dbRow && dbRow.status === 'completed') {
+      const src = String(dbRow.order_source || '').toLowerCase();
+      if (src === 'web_app' || src === 'whatsapp') {
+        await pool.query(
+          `UPDATE orders SET status = 'confirmed', updated_at = NOW()
+           WHERE id = $1 AND status = 'completed'`,
+          [dbRow.id]
+        );
+      } else if (src === 'in_person') {
+        await pool.query(
+          `DELETE FROM orders WHERE id = $1 AND order_source = 'in_person' AND status = 'completed'`,
+          [dbRow.id]
+        );
+      }
+    }
+
+    const squareOrder = await fetchOrder(squareOrderId);
+    if (!squareOrder) {
+      return { ok: false, status: 404, error: 'Order not found in Square' };
+    }
+
+    const dbOverlay = await fetchWebAppOrderBySquareIdWithItems(squareOrderId);
+    const orderPayload = dbOverlay
+      ? overlayWebAppDbOnSquareOrder(squareOrder, dbOverlay)
+      : squareOrder;
+
+    if (!kdsShouldDisplayOrder(orderPayload)) {
+      return { ok: false, status: 400, error: 'Order is not eligible for KDS display' };
+    }
+
+    const kdsRecallResetAtMs = Date.now();
+    if (io) {
+      io.emit('new-order', { order: orderPayload, kdsRecallResetAtMs });
+    }
+    return { ok: true, order: orderPayload, kdsRecallResetAtMs };
+  }
 
   router.get('/api/kds/orders', async (req, res) => {
     const period = (req.query.period || 'today').toLowerCase();
@@ -104,48 +148,64 @@ module.exports = function createKdsHistoryRouter(io) {
       return res.status(400).json({ ok: false, error: 'squareOrderId required' });
     }
     try {
-      const { rows: dbRows } = await pool.query(
-        `SELECT id, square_order_id, status, order_source FROM orders WHERE square_order_id = $1`,
-        [squareOrderId]
-      );
-      const dbRow = dbRows[0];
-      if (dbRow && dbRow.status === 'completed') {
-        const src = String(dbRow.order_source || '').toLowerCase();
-        if (src === 'web_app' || src === 'whatsapp') {
-          await pool.query(
-            `UPDATE orders SET status = 'confirmed', updated_at = NOW()
-             WHERE id = $1 AND status = 'completed'`,
-            [dbRow.id]
-          );
-        } else if (src === 'in_person') {
-          await pool.query(
-            `DELETE FROM orders WHERE id = $1 AND order_source = 'in_person' AND status = 'completed'`,
-            [dbRow.id]
-          );
-        }
+      const result = await recallBySquareOrderId(squareOrderId);
+      if (!result.ok) {
+        return res.status(result.status || 400).json({ ok: false, error: result.error });
       }
-
-      const squareOrder = await fetchOrder(squareOrderId);
-      if (!squareOrder) {
-        return res.status(404).json({ ok: false, error: 'Order not found in Square' });
-      }
-
-      const dbOverlay = await fetchWebAppOrderBySquareIdWithItems(squareOrderId);
-      const orderPayload = dbOverlay
-        ? overlayWebAppDbOnSquareOrder(squareOrder, dbOverlay)
-        : squareOrder;
-
-      if (!kdsShouldDisplayOrder(orderPayload)) {
-        return res.status(400).json({ ok: false, error: 'Order is not eligible for KDS display' });
-      }
-
-      const kdsRecallResetAtMs = Date.now();
-      if (io) {
-        io.emit('new-order', { order: orderPayload, kdsRecallResetAtMs });
-      }
-      res.json({ ok: true, order: orderPayload, kdsRecallResetAtMs });
+      res.json({
+        ok: true,
+        order: result.order,
+        kdsRecallResetAtMs: result.kdsRecallResetAtMs,
+      });
     } catch (err) {
       console.error('POST /api/kds/recall error:', err);
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  /**
+   * POST /api/kds/recall-next
+   * Recalls the most recently completed recallable order (most recent first).
+   */
+  router.post('/api/kds/recall-next', async (_req, res) => {
+    try {
+      const { rows: candidates } = await pool.query(
+        `SELECT square_order_id
+         FROM orders
+         WHERE status = 'completed'
+           AND square_order_id IS NOT NULL
+           AND order_source = ANY($1::text[])
+         ORDER BY updated_at DESC, created_at DESC
+         LIMIT 100`,
+        [RECALLABLE_SOURCES]
+      );
+
+      if (candidates.length === 0) {
+        return res.status(404).json({ ok: false, error: 'No recallable completed orders' });
+      }
+
+      let lastError = null;
+      for (const row of candidates) {
+        const squareOrderId = String(row.square_order_id || '').trim();
+        if (!squareOrderId) continue;
+        const result = await recallBySquareOrderId(squareOrderId);
+        if (result.ok) {
+          return res.json({
+            ok: true,
+            order: result.order,
+            squareOrderId,
+            kdsRecallResetAtMs: result.kdsRecallResetAtMs,
+          });
+        }
+        lastError = result.error || 'Recall candidate failed';
+      }
+
+      return res.status(404).json({
+        ok: false,
+        error: lastError || 'No recallable completed orders',
+      });
+    } catch (err) {
+      console.error('POST /api/kds/recall-next error:', err);
       res.status(500).json({ ok: false, error: err.message });
     }
   });

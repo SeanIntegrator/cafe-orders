@@ -24,6 +24,7 @@
   border-radius: var(--kds-card-radius);
   display: flex;
   flex-direction: column;
+  min-height: 280px;
   overflow: hidden;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
   animation: kdsCardIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -225,7 +226,8 @@
 .kds-drink-line__badge {
   position: absolute;
   left: 0;
-  top: 0;
+  top: 50%;
+  transform: translateY(-50%);
   width: var(--kds-bean-size);
   height: var(--kds-bean-size);
   border-radius: 50%;
@@ -236,24 +238,21 @@
   font-weight: 700;
   line-height: 1;
   flex-shrink: 0;
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.32);
   box-sizing: border-box;
 }
 
 .kds-drink-line__name-milk {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   min-width: 0;
   width: 100%;
 }
 
-.kds-drink-line__name-milk .kds-drink-line__name {
-  flex: 1;
-  min-width: 0;
-}
-
 .kds-drink-line__name {
+  width: 100%;
   font-size: 15px;
   font-weight: 600;
   min-width: 0;
@@ -263,19 +262,15 @@
   line-height: 1.25;
 }
 
-.kds-milk-icon-wrap {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-}
-
-.kds-milk-icon {
-  display: block;
-  width: 24px;
-  height: 24px;
+.kds-drink-line__milk-text {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.75;
+  line-height: 1.2;
+  padding-top: 2px;
+  padding-bottom: 2px;
 }
 
 .kds-drink-line__qty {
@@ -302,8 +297,8 @@
   font-size: 10px;
   font-weight: 600;
   padding: 2px 6px;
-  border: 0.5px solid rgba(0, 0, 0, 0.2);
-  color: inherit;
+  border: 0.5px solid rgba(255, 255, 255, 0.22);
+  color: #f4efe2;
 }
 
 .kds-drink-line--milk-whole .kds-chip,
@@ -312,7 +307,7 @@
 .kds-drink-line--milk-almond .kds-chip,
 .kds-drink-line--milk-coconut .kds-chip,
 .kds-drink-line--milk-soy .kds-chip {
-  background: rgba(255, 255, 255, 0.75);
+  background: rgba(18, 16, 13, 0.55);
 }
 
 .kds-chip--square {
@@ -376,7 +371,7 @@
 .kds-drink-line.completed .kds-chip,
 .kds-drink-line.completed .kds-drink-line__note,
 .kds-drink-line.completed .kds-drink-line__badge,
-.kds-drink-line.completed .kds-milk-icon-wrap,
+.kds-drink-line.completed .kds-drink-line__milk-text,
 .kds-food-line.completed .kds-food-line__name,
 .kds-food-line.completed .kds-food-line__qty {
   text-decoration: line-through;
@@ -421,11 +416,11 @@
 }
 
 .kds-callout-btn__left {
-  font-size: 9px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 800;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  opacity: 0.65;
+  opacity: 0.85;
   color: inherit;
 }
 

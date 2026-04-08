@@ -1,6 +1,12 @@
 /** Board DOM logic: rendering and managing order cards (Concept C). */
 
-import { orders, modifierSortOrder } from './state.js';
+import { orders, modifierSortOrder, viewMode } from './state.js';
+import {
+  renderFlowOrder,
+  detachFlowDom,
+  updateFlowTimers,
+  rerenderFlowBoard,
+} from './flow-board.js';
 import {
   isEatInOrder,
   getCustomerName,
@@ -18,58 +24,17 @@ import { sortSquareModifiers, sortRoundModifiers } from './kds-modifier-config.j
 
 const MULT = '\u00D7';
 
-/** Inline SVG milk cues — reinforces row tint at a glance (right of drink name). */
-const MILK_ICON_ARIA = {
+const MILK_TEXT_BY_KEY = {
   whole: 'Whole milk',
-  semi: 'Skim or semi-skimmed milk',
+  semi: 'Semi-skimmed milk',
   oat: 'Oat milk',
   almond: 'Almond milk',
   coconut: 'Coconut milk',
-  soy: 'Soya milk',
+  soy: 'Soy milk',
 };
 
-function milkIconMarkup(milkKey) {
-  const label = MILK_ICON_ARIA[milkKey] || 'Milk';
-  const a = escapeAttr(label);
-  const svgOpen =
-    '<svg class="kds-milk-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">';
-  const wrap = (inner) =>
-    `<span class="kds-milk-icon-wrap" role="img" aria-label="${a}">${svgOpen}${inner}</svg></span>`;
-
-  switch (milkKey) {
-    case 'whole':
-      return wrap(
-        '<path fill="#1d4ed8" d="M12 5 7 10h10L12 5zM8 10h8v10H8V10z"/>'
-      );
-    case 'semi':
-      return wrap(
-        '<path fill="#15803d" d="M12 5 7 10h10L12 5zM8 10h8v10H8V10z"/>'
-      );
-    case 'oat':
-      return wrap(
-        '<ellipse cx="12" cy="8" fill="#8b6914" rx="2.2" ry="4.2" transform="rotate(-12 12 8)"/>' +
-          '<ellipse cx="9.5" cy="15" fill="#a67c00" rx="2" ry="3.6" transform="rotate(8 9.5 15)"/>' +
-          '<ellipse cx="14.5" cy="15" fill="#6b5a2a" rx="2" ry="3.6" transform="rotate(-6 14.5 15)"/>'
-      );
-    case 'almond':
-      return wrap(
-        '<path fill="#c9a66b" stroke="#9a7349" stroke-width="0.4" d="M12 5.2c-1.3 2.8-4.2 5.4-4.2 8.9 0 2.3 1.7 4 4.2 4s4.2-1.7 4.2-4c0-3.5-2.9-6.1-4.2-8.9z"/>'
-      );
-    case 'coconut':
-      return wrap(
-        '<circle cx="12" cy="12" r="7.2" fill="#5c4a3a"/>' +
-          '<circle cx="9.2" cy="10.8" r="1.3" fill="#3d3228" opacity="0.45"/>' +
-          '<circle cx="14.1" cy="10.2" r="1.1" fill="#3d3228" opacity="0.4"/>' +
-          '<path fill="#3d3228" opacity="0.35" d="M12 15.8c-1.6 0-2.7.9-3 1.7h6c-.3-.8-1.4-1.7-3-1.7z"/>'
-      );
-    case 'soy':
-      return wrap(
-        '<ellipse cx="9.8" cy="12" fill="#4d5c24" rx="3.3" ry="5.6" transform="rotate(-30 9.8 12)"/>' +
-          '<ellipse cx="14.2" cy="12" fill="#6b7c35" rx="3.3" ry="5.6" transform="rotate(30 14.2 12)"/>'
-      );
-    default:
-      return wrap('<circle cx="12" cy="12" r="6" fill="currentColor" opacity="0.25"/>');
-  }
+function milkTextForCard(milkKey) {
+  return MILK_TEXT_BY_KEY[milkKey] || 'Milk';
 }
 
 function escapeAttr(s) {
@@ -80,6 +45,7 @@ function escapeAttr(s) {
 }
 
 const boardGrid = document.getElementById('board-grid');
+const flowGrid = document.getElementById('flow-grid');
 const emptyState = document.getElementById('empty-state');
 const orderCount = document.getElementById('order-count');
 
@@ -97,8 +63,58 @@ function resortBoard() {
   }
 }
 
+function detachCardDom(id) {
+  document.getElementById(`card-${id}`)?.remove();
+}
+
+export function refreshBoardVisibility() {
+  const n = Object.keys(orders).length;
+  if (!emptyState) return;
+  if (n === 0) {
+    emptyState.style.display = 'flex';
+    boardGrid?.classList.add('hidden');
+    flowGrid?.classList.add('hidden');
+  } else {
+    emptyState.style.display = 'none';
+    if (viewMode === 'flow') {
+      flowGrid?.classList.remove('hidden');
+      boardGrid?.classList.add('hidden');
+    } else {
+      boardGrid?.classList.remove('hidden');
+      flowGrid?.classList.add('hidden');
+    }
+  }
+}
+
+/**
+ * Apply stored view mode: body class, clear inactive grid, re-render active grid from `orders`.
+ */
+export function applyViewMode() {
+  document.body.classList.toggle('kds-flow-active', viewMode === 'flow');
+  if (viewMode === 'flow') {
+    if (boardGrid) boardGrid.innerHTML = '';
+    rerenderFlowBoard(handleDone);
+  } else {
+    if (flowGrid) flowGrid.innerHTML = '';
+    rerenderCardBoard();
+  }
+  refreshBoardVisibility();
+}
+
+export function rerenderCardBoard() {
+  if (!boardGrid) return;
+  boardGrid.innerHTML = '';
+  const ids = Object.entries(orders)
+    .sort((a, b) => a[1].createdAt - b[1].createdAt)
+    .map(([id]) => id);
+  for (const id of ids) {
+    const data = orders[id];
+    if (data?.order) renderCard(data.order);
+  }
+}
+
 function renderDrinkLine(model) {
-  const milkClass = `kds-drink-line--milk-${model.milkKey}`;
+  const milkClass = model.hasMilk ? `kds-drink-line--milk-${model.milkKey}` : '';
   const beanKind = model.bean.kind.toLowerCase();
   const beanClass = `kds-bean--${beanKind}`;
   const showBeanBadge = beanKind !== 'ho';
@@ -127,7 +143,7 @@ function renderDrinkLine(model) {
   const note = model.note
     ? `<div class="kds-drink-line__note">${escapeHtml(model.note)}</div>`
     : '';
-  const milkIcon = milkIconMarkup(model.milkKey);
+  const milkText = model.hasMilk ? milkTextForCard(model.milkKey) : '';
 
   return `
     <div class="kds-drink-line ${milkClass}${noBadgeClass}" data-kds-line="drink">
@@ -138,7 +154,7 @@ function renderDrinkLine(model) {
             ${badgeHtml}
             <div class="kds-drink-line__name-milk">
               <span class="kds-drink-line__name">${escapeHtml(model.name)}</span>
-              ${milkIcon}
+              ${milkText ? `<span class="kds-drink-line__milk-text">${escapeHtml(milkText)}</span>` : ''}
             </div>
           </div>
           <span class="kds-drink-line__qty">${MULT}${model.qty}</span>
@@ -159,13 +175,10 @@ function renderFoodRow(model) {
 }
 
 export function removeCardSilently(id) {
-  const card = document.getElementById(`card-${id}`);
-  if (card) card.remove();
+  detachCardDom(id);
+  detachFlowDom(id);
   delete orders[id];
-  if (Object.keys(orders).length === 0) {
-    emptyState.style.display = 'flex';
-    boardGrid.classList.add('hidden');
-  }
+  refreshBoardVisibility();
   updateCount();
 }
 
@@ -181,9 +194,9 @@ export function addOrUpdateOrder(order, options = {}) {
   const isDemo = String(order.id || '').startsWith('demo-');
   if (!isDemo && !shouldShowOrderOnKds(order)) return;
   const prev = orders[order.id];
-  if (prev) {
-    removeCardSilently(order.id);
-  }
+  detachCardDom(order.id);
+  detachFlowDom(order.id);
+
   let createdAt = Date.now();
   const overrideMs = options.createdAtMs;
   if (typeof overrideMs === 'number' && !Number.isNaN(overrideMs)) {
@@ -195,8 +208,13 @@ export function addOrUpdateOrder(order, options = {}) {
     if (!Number.isNaN(t)) createdAt = t;
   }
   orders[order.id] = { order, createdAt };
-  renderCard(order);
+  if (viewMode === 'flow') {
+    renderFlowOrder(order, handleDone);
+  } else {
+    renderCard(order);
+  }
   updateCount();
+  refreshBoardVisibility();
 }
 
 export function renderCard(order) {
@@ -258,8 +276,8 @@ export function renderCard(order) {
       }
     </div>
     <div class="kds-card__footer">
-      <button type="button" class="kds-callout-btn" id="dismiss-${order.id}" aria-label="Call out ${escapeAttr(customerName)} and mark done">
-        <span class="kds-callout-btn__left">CALL OUT</span>
+      <button type="button" class="kds-callout-btn" id="dismiss-${order.id}" aria-label="Mark ${escapeAttr(customerName)} done">
+        <span class="kds-callout-btn__left">DONE</span>
         <span class="kds-callout-btn__name">${escapeHtml(customerName)}</span>
       </button>
     </div>
@@ -279,16 +297,20 @@ export function renderCard(order) {
 
 export function dismissOrder(id) {
   const card = document.getElementById(`card-${id}`);
-  if (!card) return;
-  card.classList.add('removing');
-  setTimeout(() => {
-    card.remove();
+  const flow = document.getElementById(`flow-order-${id}`);
+  const el = card || flow;
+  if (!el) {
     delete orders[id];
     updateCount();
-    if (Object.keys(orders).length === 0) {
-      emptyState.style.display = 'flex';
-      boardGrid.classList.add('hidden');
-    }
+    refreshBoardVisibility();
+    return;
+  }
+  el.classList.add('removing');
+  setTimeout(() => {
+    el.remove();
+    delete orders[id];
+    updateCount();
+    refreshBoardVisibility();
   }, 300);
 }
 
@@ -321,9 +343,6 @@ export function updateTimers() {
       el.classList.add('kds-timer--red');
     }
 
-    const btn = document.querySelector(`#card-${id} .kds-callout-btn`);
-    if (btn) {
-      btn.classList.toggle('kds-callout-btn--urgent', totalSecs >= TIMER_AMBER_MAX);
-    }
   }
+  updateFlowTimers();
 }

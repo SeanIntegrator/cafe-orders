@@ -1,35 +1,35 @@
 /* KDS Concept C — design tokens (brief v8) */
 
 :root {
-  --kds-board-bg: #eeece6;
-  --kds-card-bg: #ffffff;
-  --kds-card-border: #ddddd8;
+  --kds-board-bg: #1a1917;
+  --kds-card-bg: #26231f;
+  --kds-card-border: #4a4339;
   --kds-card-radius: 8px;
   --kds-bean-size: 26px;
-  --kds-muted: #888780;
-  --kds-text-dark: #2c2c2a;
+  --kds-muted: #b4aa96;
+  --kds-text-dark: #efe8da;
   --kds-allergy: #c0392b;
-  --kds-btn-default-bg: #dfe2d4;
-  --kds-btn-default-fg: #2c2c2a;
-  --kds-btn-urgent-bg: #f0c9c9;
-  --kds-btn-urgent-fg: #6b2222;
-  --kds-timer-green-bg: #eaf3de;
-  --kds-timer-green-fg: #3b6d11;
-  --kds-timer-amber-bg: #faeeda;
-  --kds-timer-amber-fg: #854f0b;
-  --kds-timer-red-bg: #fcebeb;
-  --kds-timer-red-fg: #a32d2d;
+  --kds-btn-default-bg: #335b36;
+  --kds-btn-default-fg: #efe8da;
+  --kds-btn-urgent-bg: #335b36;
+  --kds-btn-urgent-fg: #efe8da;
+  --kds-timer-green-bg: #304129;
+  --kds-timer-green-fg: #dcefcf;
+  --kds-timer-amber-bg: #5a4525;
+  --kds-timer-amber-fg: #ffe3b9;
+  --kds-timer-red-bg: #5e2a2a;
+  --kds-timer-red-fg: #ffd6d6;
   /* Milk lines — soft tints for long-shift readability */
-  --kds-milk-whole-bg: #faf6ee;
-  --kds-milk-whole-text: #2c2c2a;
-  --kds-milk-semi-bg: #dbeede;
-  --kds-milk-semi-text: #1f4a24;
-  --kds-milk-oat-bg: #d8e2f0;
-  --kds-milk-oat-text: #243352;
-  --kds-milk-almond-bg: #fce4ec;
-  --kds-milk-almond-text: #5c1838;
-  --kds-milk-soy-bg: #dfe9e0;
-  --kds-milk-soy-text: #1e3d22;
-  --kds-milk-coconut-bg: #d9eef6;
-  --kds-milk-coconut-text: #1a3d4d;
+  --kds-milk-whole-bg: #3c3429;
+  --kds-milk-whole-text: #f5e9d5;
+  --kds-milk-semi-bg: #2f4431;
+  --kds-milk-semi-text: #ddf3df;
+  --kds-milk-oat-bg: #2f3c52;
+  --kds-milk-oat-text: #dee7fa;
+  --kds-milk-almond-bg: #4b2e3e;
+  --kds-milk-almond-text: #f8ddea;
+  --kds-milk-soy-bg: #2f4233;
+  --kds-milk-soy-text: #dceedd;
+  --kds-milk-coconut-bg: #27424c;
+  --kds-milk-coconut-text: #d8eef5;
 }

@@ -21,41 +21,47 @@
   background: var(--kds-board-bg);
 }
 
-.board-empty-state .icon {
-  font-size: 2.5rem;
-  opacity: 0.35;
+.board-empty-state__brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.board-empty-state .board-empty-state__logo {
+  width: 72px;
+  height: 72px;
+  opacity: 0.85;
+}
+
+.board-empty-state__title {
+  font-size: 1.9rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--kds-text-dark);
+}
+
+.board-empty-state__title .flow {
+  font-size: 2.05rem;
+}
+
+.board-empty-state__hint {
+  margin-top: 4px;
+  font-size: 0.82rem;
+  color: var(--kds-muted);
 }
 
 .kds-board-grid {
   flex: 1;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
   gap: 10px;
   padding: 10px;
-  align-content: start;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
   min-height: 0;
   background: var(--kds-board-bg);
-}
-
-@media (min-width: 720px) {
-  .kds-board-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-/* ~10″ tablet landscape and up: four cards per row */
-@media (min-width: 960px) {
-  .kds-board-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-/* Wide tablet / small desktop: five cards per row */
-@media (min-width: 1120px) {
-  .kds-board-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
 }
 
 .kds-board-grid.hidden {
@@ -63,12 +69,13 @@
 }
 
 .kds-board-grid > .kds-card {
-  min-width: 0;
-  width: 100%;
+  flex: 0 0 clamp(264px, 24vw, 360px);
+  min-width: clamp(264px, 24vw, 360px);
+  max-width: clamp(264px, 24vw, 360px);
 }
 
 .kds-board-grid::-webkit-scrollbar {
-  width: 6px;
+  height: 8px;
 }
 .kds-board-grid::-webkit-scrollbar-track {
   background: transparent;

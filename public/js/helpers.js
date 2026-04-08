@@ -24,6 +24,107 @@ export function getCustomerName(order) {
   return 'Walk-in';
 }
 
+/** Flow header: app vs POS / walk-in. */
+export function getOrderSource(order) {
+  const name = order?.fulfillments?.[0]?.pickup_details?.recipient?.display_name;
+  if (name != null && String(name).trim()) return 'APP ORDER';
+  return 'WALK IN';
+}
+
+/**
+ * Map a Square "Service" modifier option name to Flow header label.
+ * @param {string} name - modifier display name from line item
+ * @returns {'SIT IN'|'TAKEAWAY'|'PICKUP'|null}
+ */
+export function normalizeServiceModifierOptionName(name) {
+  const s = String(name || '').trim().toLowerCase();
+  if (!s) return null;
+  if (/^in$/.test(s) || /\b(in|for\s*here)\b/.test(s)) return 'SIT IN';
+  if (/^out$/.test(s) || /\b(out|to\s*go)\b/.test(s)) return 'TAKEAWAY';
+  if (/\b(pick\s*up|pickup)\b/.test(s) || s.includes('pick up')) return 'PICKUP';
+  if (/\b(sit\s*in|eat\s*in|dine\s*in|for\s*here)\b/.test(s)) return 'SIT IN';
+  if (/\b(take\s*away|takeaway|to\s*go)\b/.test(s)) return 'TAKEAWAY';
+  if (s.includes('pickup')) return 'PICKUP';
+  if (s.includes('sit') || s.includes('eat in') || s.includes('dine in')) return 'SIT IN';
+  if (s.includes('take away') || s.includes('takeaway') || s.includes('to go')) return 'TAKEAWAY';
+  return null;
+}
+
+/**
+ * First matching Service-list modifier on the order (any line item).
+ * @param {object} order
+ * @param {Set<string>|null|undefined} serviceOptionIds - from catalog (modifier lists named with "service")
+ * @returns {'SIT IN'|'TAKEAWAY'|'PICKUP'|null}
+ */
+export function getServiceChoiceFromModifiers(order, serviceOptionIds) {
+  const items = order?.line_items || [];
+  let sawSitIn = false;
+  let sawTakeaway = false;
+  let sawPickup = false;
+
+  for (const item of items) {
+    for (const m of item.modifiers || []) {
+      const id = m?.catalog_object_id;
+      const label = normalizeServiceModifierOptionName(m.name);
+      const fromServiceList = Boolean(id && serviceOptionIds && serviceOptionIds.has(id));
+      const fromRawToken = /\b(in|out)\b/i.test(String(m?.name || '').trim());
+      if (!label || (!fromServiceList && !fromRawToken)) continue;
+
+      if (label === 'SIT IN') sawSitIn = true;
+      else if (label === 'TAKEAWAY') sawTakeaway = true;
+      else if (label === 'PICKUP') sawPickup = true;
+    }
+  }
+  if (sawSitIn) return 'SIT IN';
+  if (sawTakeaway) return 'TAKEAWAY';
+  if (sawPickup) return 'PICKUP';
+  return null;
+}
+
+/**
+ * Service type for Flow header.
+ * @param {object} order
+ * @param {boolean} isEatIn - from isEatInOrder(order)
+ * @param {Set<string>|null|undefined} [serviceOptionIds] - optional; when set, Square Service modifier wins
+ */
+export function getServiceLabel(order, isEatIn, serviceOptionIds) {
+  const fromMod = getServiceChoiceFromModifiers(order, serviceOptionIds);
+  if (fromMod) return fromMod;
+  const type = order?.fulfillments?.[0]?.type;
+  if (type === 'PICKUP') return 'PICKUP';
+  if (isEatIn) return 'SIT IN';
+  return 'TAKEAWAY';
+}
+
+/**
+ * Show espresso bean badges only for coffee-style drinks (not matcha/chai/hot choc/tea-only).
+ */
+export function isCoffeeBeanItem(item) {
+  const name = (item?.name || '').toLowerCase();
+  if (
+    [
+      'espresso',
+      'latte',
+      'cappuccino',
+      'americano',
+      'macchiato',
+      'mocha',
+      'flat white',
+      'cortado',
+      'ristretto',
+      'long black',
+      'short black',
+      'cold brew',
+      'lungo',
+      'affogato',
+    ].some((w) => name.includes(w))
+  ) {
+    return true;
+  }
+  if (name.includes('coffee') && !name.includes('hot choc') && !name.includes('tea')) return true;
+  return false;
+}
+
 /**
  * Returns modifier names in display order: first category (e.g. Milk) first, then rest.
  * Uses modifier-categories from Square so milk chip and extras are correct regardless of payload order.
@@ -52,13 +153,17 @@ export function getMilkChipClass(label) {
 
 export function isDrinkItem(item) {
   const name = (item.name || '').toLowerCase();
-  return [
+  const hasDrinkKeyword = [
     'coffee', 'latte', 'flat white', 'cappuccino', 'americano',
     'espresso', 'mocha', 'macchiato', 'tea', 'matcha', 'chai',
     'long black', 'short black', 'cold brew', 'cortado', 'ristretto',
     'filter', 'pour over', 'hot chocolate', 'hot choc', 'affogato',
     'frappe', 'smoothie', 'juice', 'lemonade', 'milk shake', 'milkshake',
+    'cooler', 'spritz', 'water',
   ].some((word) => name.includes(word));
+  if (hasDrinkKeyword) return true;
+
+  return /\b(?:\w*ade|can)\b/.test(name);
 }
 
 export function formatMoney(money) {

@@ -68,11 +68,170 @@
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s, background 0.15s;
 }
+
+.header-recall-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+}
+
+.header-recall-btn__icon {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.header-menu-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 1rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.header-menu-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.header-drawer-overlay {
+  align-items: stretch;
+  justify-content: flex-end;
+  padding: 0;
+  z-index: 240;
+}
+
+.header-drawer {
+  width: min(320px, 88vw);
+  height: 100%;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: -16px 0 44px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+}
+
+.header-drawer__header {
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+
+.header-drawer__header h2 {
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.header-drawer__body {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.header-drawer__view-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+
+.header-drawer__field-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.header-drawer .view-toggle--drawer {
+  flex-shrink: 0;
+}
+
+.header-drawer .view-toggle--drawer .view-toggle__btn {
+  width: 80px;
+  min-width: 80px;
+  max-width: 80px;
+  flex: 0 0 80px;
+  box-sizing: border-box;
+  padding-left: 0;
+  padding-right: 0;
+  background: var(--surface-alt);
+  color: var(--text);
+}
+
+.header-drawer .view-toggle--drawer .view-toggle__btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
+
+.header-drawer .view-toggle--drawer .view-toggle__btn.active {
+  background: rgba(255, 255, 255, 0.18);
+  color: var(--text);
+  font-weight: 700;
+}
+
+.kds-flow-active .header-drawer .view-toggle--drawer .view-toggle__btn.active {
+  background: rgba(255, 255, 255, 0.18);
+  color: var(--text);
+}
+
+/* Primary (filled) actions in drawer — not ghost/outline */
+.header-drawer__body .header-drawer__btn {
+  width: 100%;
+  background: var(--surface-alt);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-weight: 600;
+}
+
+.header-drawer__body .header-drawer__btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--muted);
+  color: var(--text);
+}
+
+.header-drawer__body .demo-btn--dismiss-old.header-drawer__btn {
+  border-color: var(--border);
+  color: var(--text);
+  background: var(--surface-alt);
+}
+
+.header-drawer__body .demo-btn--dismiss-old.header-drawer__btn:hover {
+  background: rgba(180, 120, 60, 0.18);
+  border-color: rgba(200, 140, 80, 0.55);
+  color: var(--text);
+}
 .demo-btn:hover {
   color: var(--text);
   border-color: var(--muted);
-  background: rgba(131, 132, 114, 0.08);
+  background: rgba(255, 255, 255, 0.08);
 }
+
+.demo-btn--primary {
+  color: var(--bg);
+  background: var(--paid);
+  border-color: transparent;
+}
+
+.demo-btn--primary:hover {
+  color: var(--bg);
+  background: #8f966f;
+  border-color: transparent;
+}
+
+.demo-btn--primary:active {
+  filter: brightness(0.92);
+}
+
 .demo-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -166,4 +325,42 @@
 
 .flow {
   font-family: 'Tangerine', cursive;
+}
+
+/* KDS Cards / Flow view switcher */
+.view-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.view-toggle__btn {
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.view-toggle__btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.view-toggle__btn.active {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--text);
+}
+
+.kds-flow-active .view-toggle__btn.active {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
 }
