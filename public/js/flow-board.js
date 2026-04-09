@@ -30,6 +30,237 @@ const flowGrid = document.getElementById('flow-grid');
 const emptyState = document.getElementById('empty-state');
 const boardGrid = document.getElementById('board-grid');
 
+const g = typeof window !== 'undefined' ? window.gsap : null;
+const FlipPlugin = typeof window !== 'undefined' ? window.Flip : null;
+if (g && FlipPlugin) {
+  g.registerPlugin(FlipPlugin);
+}
+
+/** Fallback when GSAP is unavailable (same thresholds as legacy swipe). */
+const FLOW_SWIPE_MIN_DX = 72;
+const FLOW_SWIPE_MAX_VERT = 90;
+const THROW_VEL_PX_PER_MS = 0.4;
+const THROW_DIST_FRAC = 0.35;
+
+/**
+ * Swipe-dismiss synthesizes a click on the touched line; stop it from reaching the delegated
+ * line-toggle handler on `#board-container` (see app.js).
+ */
+function suppressNextClickBubblingFromArticle(article) {
+  const fn = (ev) => {
+    ev.stopPropagation();
+    article.removeEventListener('click', fn, true);
+  };
+  article.addEventListener('click', fn, true);
+  setTimeout(() => article.removeEventListener('click', fn, true), 400);
+}
+
+function applyDismissFromFlow(id) {
+  import('./board.js')
+    .then((m) => m.applyOrderDismissState(id))
+    .catch(() => {
+      delete orders[id];
+    });
+}
+
+/**
+ * Animate a flow card off-screen (header tap, socket close), then FLIP remaining cards.
+ * @param {string} id - Square order id
+ */
+export function animateOutFlowOrder(id) {
+  const el = document.getElementById(`flow-order-${id}`);
+  if (!el || !flowGrid) {
+    applyDismissFromFlow(id);
+    return;
+  }
+  if (!g || !FlipPlugin) {
+    el.remove();
+    applyDismissFromFlow(id);
+    return;
+  }
+
+  el.style.animation = 'none';
+  const state = FlipPlugin.getState(flowGrid.querySelectorAll('.flow-order'));
+  const rect = el.getBoundingClientRect();
+  const deltaX = window.innerWidth - rect.left + 48;
+  const curX = parseFloat(g.getProperty(el, 'x', 'px')) || 0;
+
+  g.to(el, {
+    x: curX + deltaX,
+    opacity: 0,
+    duration: 0.22,
+    ease: 'power2.in',
+    onComplete: () => {
+      el.remove();
+      FlipPlugin.from(state, { duration: 0.35, ease: 'power2.out' });
+      applyDismissFromFlow(id);
+    },
+  });
+}
+
+function completeSwipeDismiss(article, orderId, onDismiss) {
+  if (!flowGrid) {
+    article.remove();
+    onDismiss(orderId);
+    return;
+  }
+  if (!FlipPlugin) {
+    article.remove();
+    onDismiss(orderId);
+    return;
+  }
+  const state = FlipPlugin.getState(flowGrid.querySelectorAll('.flow-order'));
+  article.remove();
+  FlipPlugin.from(state, { duration: 0.35, ease: 'power2.out' });
+  onDismiss(orderId);
+}
+
+/**
+ * @param {HTMLElement} article - `.flow-order`
+ * @param {string} orderId
+ * @param {(id: string) => void} onDismiss
+ */
+function attachFlowOrderSwipeDismiss(article, orderId, onDismiss) {
+  let startX = 0;
+  let startY = 0;
+  let activePointer = null;
+  let lastX = 0;
+  let lastT = 0;
+  /** @type {number} */
+  let velX = 0;
+
+  article.addEventListener(
+    'pointerdown',
+    (e) => {
+      if (e.button !== 0) return;
+      activePointer = e.pointerId;
+      startX = e.clientX;
+      startY = e.clientY;
+      lastX = e.clientX;
+      lastT = e.timeStamp;
+      velX = 0;
+      try {
+        article.setPointerCapture(e.pointerId);
+      } catch (_) {
+        /* ignore */
+      }
+      if (g) {
+        article.style.animation = 'none';
+        g.set(article, { zIndex: 2 });
+      }
+    },
+    true
+  );
+
+  article.addEventListener(
+    'pointermove',
+    (e) => {
+      if (activePointer !== e.pointerId) return;
+      const dt = Math.max(1, e.timeStamp - lastT);
+      velX = (e.clientX - lastX) / dt;
+      lastX = e.clientX;
+      lastT = e.timeStamp;
+
+      const dx = Math.max(0, e.clientX - startX);
+      const dy = e.clientY - startY;
+      if (Math.abs(dy) > FLOW_SWIPE_MAX_VERT && Math.abs(dy) > dx) {
+        return;
+      }
+      if (g) {
+        g.set(article, { x: dx });
+      } else {
+        article.style.transform = `translateX(${dx}px)`;
+      }
+    },
+    true
+  );
+
+  article.addEventListener(
+    'pointerup',
+    (e) => {
+      if (activePointer !== e.pointerId) return;
+      activePointer = null;
+      try {
+        article.releasePointerCapture(e.pointerId);
+      } catch (_) {
+        /* ignore */
+      }
+
+      const dx = Math.max(0, e.clientX - startX);
+      const dy = e.clientY - startY;
+      const cardW = article.offsetWidth || 320;
+
+      const fallbackDismiss =
+        dx >= FLOW_SWIPE_MIN_DX &&
+        Math.abs(dy) <= FLOW_SWIPE_MAX_VERT &&
+        dx >= Math.abs(dy);
+
+      if (!g) {
+        if (fallbackDismiss) {
+          suppressNextClickBubblingFromArticle(article);
+          onDismiss(orderId);
+        } else {
+          article.style.transform = '';
+        }
+        return;
+      }
+
+      const throwByVel = velX > THROW_VEL_PX_PER_MS;
+      const throwByDist = dx > THROW_DIST_FRAC * cardW;
+      const mostlyHorizontal = Math.abs(dy) <= FLOW_SWIPE_MAX_VERT || dx > Math.abs(dy);
+      const shouldThrow = mostlyHorizontal && (throwByVel || throwByDist) && dx > 8;
+
+      if (!shouldThrow) {
+        g.to(article, {
+          x: 0,
+          opacity: 1,
+          duration: 0.4,
+          ease: 'back.out(1.7)',
+          onComplete: () => {
+            g.set(article, { clearProps: 'zIndex' });
+          },
+        });
+        return;
+      }
+
+      suppressNextClickBubblingFromArticle(article);
+      const rect = article.getBoundingClientRect();
+      const deltaX = window.innerWidth - rect.left + 48;
+      const curX = parseFloat(g.getProperty(article, 'x', 'px')) || 0;
+
+      g.to(article, {
+        x: curX + deltaX,
+        opacity: 0,
+        duration: 0.35,
+        ease: 'power2.out',
+        onComplete: () => {
+          g.set(article, { clearProps: 'zIndex' });
+          completeSwipeDismiss(article, orderId, onDismiss);
+        },
+      });
+    },
+    true
+  );
+
+  article.addEventListener(
+    'pointercancel',
+    (e) => {
+      if (activePointer === e.pointerId) {
+        activePointer = null;
+        if (g) {
+          g.to(article, {
+            x: 0,
+            duration: 0.25,
+            ease: 'power2.out',
+            onComplete: () => g.set(article, { clearProps: 'zIndex' }),
+          });
+        }
+      }
+    },
+    true
+  );
+}
+
 function beanBadgeHtml(bean, totalBeans) {
   const kind = bean.kind.toLowerCase();
   const showNum = totalBeans > 1 || bean.shots !== DEFAULT_SHOTS;
@@ -101,7 +332,11 @@ function renderFlowDrinkRow(model) {
     : '';
 
   const allergyHtml = model.showAllergyBar
-    ? `<div class="flow-row__allergy" role="alert">⚠ ${model.allergyLabelEscaped}</div>`
+    ? `<div class="flow-row__allergy" role="alert"><span class="flow-row__allergy-icon" aria-hidden="true">⚠</span><span class="flow-row__allergy-text">${model.allergyLabelEscaped}</span></div>`
+    : '';
+
+  const lineAllergyHtml = model.lineAllergyNoteEscaped
+    ? `<div class="flow-row__allergy flow-row__allergy--line" role="alert"><span class="flow-row__allergy-icon" aria-hidden="true">⚠</span><span class="flow-row__allergy-text">${model.lineAllergyNoteEscaped}</span></div>`
     : '';
 
   return `
@@ -120,6 +355,7 @@ function renderFlowDrinkRow(model) {
       <div class="flow-row__detail">
         ${noteHtml}
         ${allergyHtml}
+        ${lineAllergyHtml}
       </div>
     </div>`;
 }
@@ -127,6 +363,10 @@ function renderFlowDrinkRow(model) {
 function renderFlowFoodRow(model) {
   const prepHtml = model.prepText
     ? `<div class="flow-row__prep-text">${escapeHtml(model.prepText)}</div>`
+    : '';
+
+  const lineAllergyHtml = model.lineAllergyNoteEscaped
+    ? `<div class="flow-row__allergy flow-row__allergy--line" role="alert"><span class="flow-row__allergy-icon" aria-hidden="true">⚠</span><span class="flow-row__allergy-text">${model.lineAllergyNoteEscaped}</span></div>`
     : '';
 
   return `
@@ -141,7 +381,7 @@ function renderFlowFoodRow(model) {
         </div>
       </div>
       <div class="flow-row__prep">${prepHtml}</div>
-      <div class="flow-row__detail"></div>
+      <div class="flow-row__detail">${lineAllergyHtml}</div>
     </div>`;
 }
 
@@ -242,6 +482,8 @@ export function renderFlowOrder(order, onComplete) {
       dismiss();
     }
   });
+
+  attachFlowOrderSwipeDismiss(article, order.id, done);
 
   flowGrid.appendChild(article);
   resortFlowBoard();

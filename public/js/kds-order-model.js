@@ -2,7 +2,7 @@
  * Pure view-model builders for KDS Concept C cards and Flow view.
  */
 
-import { getModifiers, isDrinkItem, isCoffeeBeanItem } from './helpers.js';
+import { getModifiers, isDrinkItem, isCoffeeBeanItem, escapeHtml } from './helpers.js';
 import { normalizeServiceModifierOptionName } from './helpers.js';
 import {
   extractMilkFromModifierList,
@@ -23,6 +23,9 @@ import {
   isFlowMilkTemperature,
   isFlowSizeModifier,
   isShotCountModifier,
+  syntheticMilkSnippetsFromNote,
+  flowSizeLabelFromNote,
+  decafSuggestedByLineNote,
 } from './kds-modifier-config.js';
 import {
   buildFlowMilkScanText,
@@ -61,6 +64,20 @@ function stripFlowShotNoteFragments(s) {
   return t;
 }
 
+/** Remove size tokens already shown on the size chip (note-only or duplicate phrasing). */
+function stripFlowSizeWordsFromNote(s) {
+  let t = String(s || '').trim();
+  if (!t) return '';
+  t = t
+    .replace(/\b(venti|grande|tall|large|medium|small|short|xl|xxl|xs)\b/gi, ' ')
+    .replace(/\b\d{1,2}\s*oz\b/gi, ' ')
+    .replace(/\b\d{2,3}\s*ml\b/gi, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[,.;:\s]+|[,.;:\s]+$/g, '')
+    .trim();
+  return t;
+}
+
 function milkDisplayName(milkKey, milkLabel) {
   if (milkLabel) {
     const t = String(milkLabel).trim();
@@ -80,11 +97,16 @@ function milkDisplayName(milkKey, milkLabel) {
  */
 export function buildDrinkLineModel(item, modifierSortOrder, order, showAllergyBar, allergyLabelEscaped) {
   const names = getModifiers(item, modifierSortOrder).filter((n) => !isRegularSizeModifierLabel(n));
+  const noteRawCard =
+    item.customer_note != null && String(item.customer_note).trim()
+      ? String(item.customer_note).trim()
+      : '';
+  const milkSnippetsCard = syntheticMilkSnippetsFromNote(noteRawCard);
   const itemNameLower = String(item?.name || '').toLowerCase();
   const hasMilkInName = /\bmilk\s*shake\b/.test(itemNameLower);
-  const hasMilkModifier = names.some((n) => detectMilkKey(n));
+  const hasMilkModifier = [...names, ...milkSnippetsCard].some((n) => detectMilkKey(n));
   const hasMilk = hasMilkModifier || hasMilkInName;
-  const { milkKey } = extractMilkFromModifierList(names);
+  const { milkKey } = extractMilkFromModifierList([...names, ...milkSnippetsCard]);
   const withoutMilk = names.filter((n) => !detectMilkKey(n));
 
   if (item.variation_name && item.variation_name !== 'Regular') {
@@ -109,7 +131,7 @@ export function buildDrinkLineModel(item, modifierSortOrder, order, showAllergyB
     else square.push(n);
   }
 
-  const decafChip = hasDecafModifier(names);
+  const decafChip = hasDecafModifier(names) || decafSuggestedByLineNote(item);
   const bean = beanBadgeFromItem(item, order);
   const squareFiltered =
     decafChip && bean.kind === 'Dc'
@@ -164,8 +186,14 @@ export function buildFlowDrinkModel(item, modifierSortOrder, order, showAllergyB
   const names = getModifiers(item, modifierSortOrder)
     .filter((n) => !isRegularSizeModifierLabel(n))
     .filter((n) => !normalizeServiceModifierOptionName(n));
-  const { milkKey, milkLabel } = extractMilkFromModifierList(names);
-  const hasMilkModifier = names.some((n) => detectMilkKey(n));
+
+  const noteRaw =
+    item.customer_note != null && String(item.customer_note).trim()
+      ? String(item.customer_note).trim()
+      : '';
+  const milkSnippets = syntheticMilkSnippetsFromNote(noteRaw);
+  const { milkKey, milkLabel } = extractMilkFromModifierList([...names, ...milkSnippets]);
+  const hasMilkModifier = [...names, ...milkSnippets].some((n) => detectMilkKey(n));
 
   const withoutMilk = names.filter((n) => !detectMilkKey(n));
   const noShotMods = withoutMilk.filter((n) => !isShotCountModifier(n));
@@ -186,7 +214,7 @@ export function buildFlowDrinkModel(item, modifierSortOrder, order, showAllergyB
     (n) => !isTextureModifier(n) && !isFlowMilkTemperature(n)
   );
 
-  const decafChip = hasDecafModifier(names);
+  const decafChip = hasDecafModifier(names) || decafSuggestedByLineNote(item);
   const primaryBean = beanBadgeFromItem(item, order);
   const restFiltered =
     decafChip && primaryBean.kind === 'Dc'
@@ -212,10 +240,6 @@ export function buildFlowDrinkModel(item, modifierSortOrder, order, showAllergyB
     else extraSquare.push(n);
   }
 
-  const noteRaw =
-    item.customer_note != null && String(item.customer_note).trim()
-      ? String(item.customer_note).trim()
-      : '';
   const flowMilkScanText = buildFlowMilkScanText(names, noteRaw);
   const textureFromParser = parseFlowMilkTextureFromText(flowMilkScanText);
   const tempFromParser = parseFlowMilkTemperatureFromText(flowMilkScanText);
@@ -241,8 +265,11 @@ export function buildFlowDrinkModel(item, modifierSortOrder, order, showAllergyB
 
   /** @type {{ kind: string, label: string, shots: number, isGhost: boolean }[]} */
   let beans = [];
+  const prepBeans = item.kds_prep?.version === 1 && Array.isArray(item.kds_prep.beans) ? item.kds_prep.beans : null;
   if (showBeans) {
-    if (shotInfo.splitBeans) {
+    if (prepBeans && prepBeans.length > 0) {
+      beans = prepBeans;
+    } else if (shotInfo.splitBeans) {
       const { decaf, house } = shotInfo.splitBeans;
       beans = [
         {
@@ -277,7 +304,8 @@ export function buildFlowDrinkModel(item, modifierSortOrder, order, showAllergyB
     item.variation_name && String(item.variation_name).trim() && item.variation_name !== 'Regular'
       ? String(item.variation_name).trim()
       : null;
-  const sizeRaw = sizeFromVariation ?? sizeFromModifier;
+  const sizeFromNote = flowSizeLabelFromNote(noteRaw);
+  const sizeRaw = sizeFromVariation ?? sizeFromModifier ?? sizeFromNote;
   const sizeChip = sizeRaw ? String(sizeRaw).trim().toUpperCase() : null;
 
   const hasTextureInChip = Boolean(textureForChip);
@@ -285,9 +313,17 @@ export function buildFlowDrinkModel(item, modifierSortOrder, order, showAllergyB
   const milkChipWidthPx =
     50 + (hasTextureInChip ? 40 : 0) + (hasTempInChip ? 40 : 0);
 
-  const noteForDetail = stripFlowShotNoteFragments(
+  const noteAfterShotStrip = stripFlowShotNoteFragments(
     textureFromNote || tempFromNote ? '' : noteRaw
   );
+
+  const lineNoteHasAllergy = /\ballergy\b/i.test(noteRaw);
+  /** Pre-escaped HTML for line-note allergy alert (full note when keyword matches). */
+  const lineAllergyNoteEscaped = lineNoteHasAllergy ? escapeHtml(noteRaw) : '';
+  let noteForDetail = lineNoteHasAllergy ? '' : noteAfterShotStrip;
+  if (noteForDetail && flowSizeLabelFromNote(noteRaw)) {
+    noteForDetail = stripFlowSizeWordsFromNote(noteForDetail);
+  }
 
   return {
     milkKey,
@@ -304,6 +340,7 @@ export function buildFlowDrinkModel(item, modifierSortOrder, order, showAllergyB
     sizeChip,
     qty: item.quantity || 1,
     note: noteForDetail,
+    lineAllergyNoteEscaped,
     showAllergyBar,
     allergyLabelEscaped,
   };
@@ -317,18 +354,23 @@ export function buildFlowFoodModel(item, modifierSortOrder) {
     item.customer_note != null && String(item.customer_note).trim()
       ? String(item.customer_note).trim()
       : '';
-  const note = noteRaw
-    .replace(/\b(?:in|out)\b/gi, ' ')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
+  const lineNoteHasAllergy = /\ballergy\b/i.test(noteRaw);
+  const lineAllergyNoteEscaped = lineNoteHasAllergy ? escapeHtml(noteRaw) : '';
+  const noteForPrep = lineNoteHasAllergy
+    ? ''
+    : noteRaw
+        .replace(/\b(?:in|out)\b/gi, ' ')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
   const names = getModifiers(item, modifierSortOrder)
     .filter((n) => !isRegularSizeModifierLabel(n))
     .filter((n) => !normalizeServiceModifierOptionName(n));
   const modText = names.length ? names.join(', ') : '';
-  const prepText = note || modText || '';
+  const prepText = noteForPrep || modText || '';
   return {
     name: item.name || 'Item',
     qty: item.quantity || 1,
     prepText,
+    lineAllergyNoteEscaped,
   };
 }

@@ -102,6 +102,7 @@
   text-transform: uppercase;
   color: var(--kds-muted);
   padding: 6px 10px 0;
+  border-bottom: 4px solid green;
 }
 
 .kds-card__food-rule {

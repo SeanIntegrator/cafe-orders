@@ -2,7 +2,7 @@
 
 import { orders, modifierSortOrder, serviceModifierOptionIds } from './state.js';
 import { showToast } from './ui.js';
-import { dismissOrder } from './board.js';
+import { dismissOrder, addOrUpdateOrder } from './board.js';
 
 /** Same idea as board wait timers (`createdAt`); not the green/amber/red thresholds in board.js. */
 const DISMISS_OLD_WAIT_MS = 30 * 60 * 1000;
@@ -47,17 +47,10 @@ export async function handleDone(id) {
     dismissOrder(id);
     return;
   }
-  const btn = document.querySelector(`#card-${id} .kds-callout-btn`);
-  const flowHeader = document.querySelector(`#flow-order-${id} .flow-order__header`);
-  if (btn) btn.disabled = true;
-  if (flowHeader) {
-    flowHeader.setAttribute('aria-disabled', 'true');
-    flowHeader.style.pointerEvents = 'none';
-    flowHeader.style.opacity = '0.6';
-  }
 
   const record = orders[id];
   const order = record?.order;
+  const createdAt = record?.createdAt;
   const payload = {};
   if (order) {
     payload.version = order.version;
@@ -67,6 +60,9 @@ export async function handleDone(id) {
     if (order.total_money) payload.total_money = order.total_money;
   }
 
+  /** Optimistic: remove from the board immediately; restore if the request fails. */
+  dismissOrder(id);
+
   try {
     const res = await fetch(`/api/orders/${encodeURIComponent(id)}/complete`, {
       method: 'POST',
@@ -75,26 +71,19 @@ export async function handleDone(id) {
     });
     const data = await res.json().catch(() => ({}));
     if (data.ok || data.already) {
-      dismissOrder(id);
       if (data.completed === false && data.message) {
         showToast(data.message, 'success');
       }
     } else {
       showToast(data.error || 'Could not complete order', 'error');
-      if (btn) btn.disabled = false;
-      if (flowHeader) {
-        flowHeader.removeAttribute('aria-disabled');
-        flowHeader.style.pointerEvents = '';
-        flowHeader.style.opacity = '';
+      if (order && typeof createdAt === 'number') {
+        addOrUpdateOrder(order, { createdAtMs: createdAt });
       }
     }
   } catch (e) {
     showToast('Network error', 'error');
-    if (btn) btn.disabled = false;
-    if (flowHeader) {
-      flowHeader.removeAttribute('aria-disabled');
-      flowHeader.style.pointerEvents = '';
-      flowHeader.style.opacity = '';
+    if (order && typeof createdAt === 'number') {
+      addOrUpdateOrder(order, { createdAtMs: createdAt });
     }
   }
 }

@@ -28,6 +28,7 @@
 // const { WebhooksHelper } = require('square');
 const square = require('../lib/square');
 const emittedOrders = require('../lib/emitted-orders');
+const { resolveOrderForKdsDisplay } = require('../lib/kds-normalize');
 
 const KDS_WEBHOOK_DEBOUNCE_MS = Math.max(
   0,
@@ -82,11 +83,15 @@ async function emitOrderForKds(io, orderId, partialOrder = null) {
     console.warn('Webhook: could not resolve order', orderId);
     return;
   }
-  if (square.kdsShouldDisplayOrder(resolved)) {
+  const display = await resolveOrderForKdsDisplay(resolved);
+  if (!display) {
+    return;
+  }
+  if (square.kdsShouldDisplayOrder(display)) {
     if (!emittedOrders.shouldEmitNewOrder(orderId)) {
       return;
     }
-    io.emit('new-order', resolved);
+    io.emit('new-order', display);
     emittedOrders.recordNewOrderEmit(orderId);
   } else {
     io.emit('squareOrderClosed', { squareOrderId: orderId });

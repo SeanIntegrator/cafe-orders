@@ -7,6 +7,7 @@ const pool = require('../db');
 const { mapItemRow, fetchWebAppOrderBySquareIdWithItems } = require('../lib/orders-db');
 const { searchAllOrders, fetchOrder } = require('../lib/square');
 const { overlayWebAppDbOnSquareOrder } = require('../lib/kds-merge');
+const { normalizeKdsOrder } = require('../lib/kds-normalize');
 const { kdsShouldDisplayOrder } = require('../lib/kds-visibility');
 
 /** Match RecallContext: barista-facing history (excludes unpaid pending). */
@@ -47,9 +48,9 @@ module.exports = function createKdsHistoryRouter(io) {
     }
 
     const dbOverlay = await fetchWebAppOrderBySquareIdWithItems(squareOrderId);
-    const orderPayload = dbOverlay
-      ? overlayWebAppDbOnSquareOrder(squareOrder, dbOverlay)
-      : squareOrder;
+    const orderPayload = normalizeKdsOrder(
+      dbOverlay ? overlayWebAppDbOnSquareOrder(squareOrder, dbOverlay) : squareOrder
+    );
 
     if (!kdsShouldDisplayOrder(orderPayload)) {
       return { ok: false, status: 400, error: 'Order is not eligible for KDS display' };

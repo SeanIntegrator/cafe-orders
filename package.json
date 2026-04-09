@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "node scripts/check-kds-visibility-sync.js",
+    "test": "node scripts/check-kds-visibility-sync.js && node scripts/check-kds-normalize.js",
     "start": "node index.js",
     "dev": "nodemon index.js"
   },

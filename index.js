@@ -16,6 +16,7 @@ const { createSquareWebhookHandler } = require('./routes/webhook');
 const { startPolling } = require('./lib/orders-poller');
 const { createCheckoutRouter, createWebhookHandler } = require('./routes/stripe');
 const square = require('./lib/square');
+const { setKdsSiteKey, getKdsSiteKey } = require('./lib/kds-site-config');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -109,10 +110,24 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log('Server running on port', PORT);
-  console.log('Square API:', square.SQUARE_BASE_URL, `(env: ${square.SQUARE_ENV})`);
-  if (allowedOrigins.length) {
-    console.log('CORS allowed origins:', allowedOrigins.join(', '));
+
+(async function startServer() {
+  let kdsSiteKey = process.env.KDS_SITE_KEY || null;
+  if (!kdsSiteKey) {
+    try {
+      kdsSiteKey = await square.getLocationId();
+    } catch (e) {
+      console.warn('KDS site key: could not load Square location:', e.message || e);
+    }
   }
-});
+  setKdsSiteKey(kdsSiteKey || 'default');
+
+  server.listen(PORT, () => {
+    console.log('Server running on port', PORT);
+    console.log('Square API:', square.SQUARE_BASE_URL, `(env: ${square.SQUARE_ENV})`);
+    console.log('KDS site key:', getKdsSiteKey());
+    if (allowedOrigins.length) {
+      console.log('CORS allowed origins:', allowedOrigins.join(', '));
+    }
+  });
+})();

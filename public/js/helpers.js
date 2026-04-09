@@ -131,13 +131,19 @@ export function isCoffeeBeanItem(item) {
  */
 export function getModifiers(item, modifierSortOrder) {
   if (!item.modifiers || !item.modifiers.length) return [];
-  const withOrder = item.modifiers.map((m) => ({
-    name: m.name,
-    order: modifierSortOrder.has(m.catalog_object_id)
+  const withOrder = item.modifiers.map((m) => {
+    const kds = m.kds_sort_order;
+    const fromCatalog = modifierSortOrder.has(m.catalog_object_id)
       ? modifierSortOrder.get(m.catalog_object_id)
-      : 999,
-  }));
-  withOrder.sort((a, b) => a.order - b.order);
+      : 999;
+    const order =
+      kds != null && Number.isFinite(Number(kds)) ? Number(kds) : fromCatalog;
+    return { name: m.name, order };
+  });
+  withOrder.sort((a, b) => {
+    if (a.order !== b.order) return a.order - b.order;
+    return String(a.name).localeCompare(String(b.name), undefined, { sensitivity: 'base' });
+  });
   return withOrder.map((m) => m.name);
 }
 

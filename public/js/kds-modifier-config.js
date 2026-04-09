@@ -10,7 +10,7 @@ const DECAF_RE = /\bdecaf|decaffeinated\b/i;
 const GUEST_RE = /\bguest\s+(bean|espresso|shot|grind)\b/i;
 
 const MILK_RULES = [
-  { key: 'soy', re: /\bsoy\b/i },
+  { key: 'soy', re: /\b(soy|soya)\b/i },
   { key: 'coconut', re: /\bcoconut\b/i },
   { key: 'almond', re: /\balmond\b/i },
   { key: 'oat', re: /\boat\b/i },
@@ -161,6 +161,55 @@ export function hasDecafModifier(names) {
   return names.some((n) => DECAF_RE.test(String(n)));
 }
 
+/**
+ * Merged line note (POS + app both end up with customer_note after server normalize; keep tolerant).
+ * @param {object} item
+ */
+export function getMergedLineNote(item) {
+  const a = item?.customer_note != null ? String(item.customer_note).trim() : '';
+  const b = item?.note != null ? String(item.note).trim() : '';
+  if (a && b && a !== b) return `${a} ${b}`.replace(/\s+/g, ' ').trim();
+  return a || b;
+}
+
+export function decafSuggestedByLineNote(item) {
+  return DECAF_RE.test(getMergedLineNote(item));
+}
+
+export function guestBeanSuggestedByLineNote(item) {
+  return GUEST_RE.test(getMergedLineNote(item));
+}
+
+/** Snippets from free text for milk detection when POS puts milk only in the note. */
+export function syntheticMilkSnippetsFromNote(noteRaw) {
+  const s = String(noteRaw || '').trim();
+  if (!s) return [];
+  const out = [];
+  for (const { re } of MILK_RULES) {
+    const m = s.match(re);
+    if (m) out.push(m[0]);
+  }
+  return out;
+}
+
+/**
+ * Flow size chip from line note (e.g. "large oat" when no Large modifier on the ticket).
+ * @param {string|null|undefined} noteRaw
+ * @returns {string|null} e.g. "LARGE"
+ */
+export function flowSizeLabelFromNote(noteRaw) {
+  const s = String(noteRaw || '').trim();
+  if (!s) return null;
+  for (const w of s.split(/\s+/)) {
+    if (isFlowSizeModifier(w)) return String(w).trim().toUpperCase();
+  }
+  const oz = s.match(/\b(\d{1,2})\s*oz\b/i);
+  if (oz && isFlowSizeModifier(`${oz[1]} oz`)) return `${oz[1]} OZ`;
+  const ml = s.match(/\b(\d{2,3})\s*ml\b/i);
+  if (ml && isFlowSizeModifier(`${ml[1]} ml`)) return `${ml[1]} ML`;
+  return null;
+}
+
 export function orderSuggestsGuestBean(order) {
   const note = [
     order?.fulfillments?.[0]?.pickup_details?.note,
@@ -178,8 +227,9 @@ export function beanBadgeFromItem(item, order) {
     if (label.length >= 2) return { kind: 'Et', label: label.slice(0, 2) };
   }
   const names = (item?.modifiers || []).map((m) => m?.name).filter(Boolean);
-  if (hasDecafModifier(names)) return { kind: 'Dc', label: 'Dc' };
-  if (orderSuggestsGuestBean(order)) return { kind: 'Gu', label: 'Gu' };
+  const lineNote = getMergedLineNote(item);
+  if (hasDecafModifier(names) || DECAF_RE.test(lineNote)) return { kind: 'Dc', label: 'Dc' };
+  if (orderSuggestsGuestBean(order) || GUEST_RE.test(lineNote)) return { kind: 'Gu', label: 'Gu' };
   return { kind: 'Ho', label: 'Ho' };
 }
 
@@ -318,11 +368,23 @@ function parseSplitShotsFromNames(names) {
 const DEFAULT_ESPRESSO_SHOTS = 2;
 
 /**
+ * Modifier names plus line note (POS often puts "Single shot" only in note).
+ * @param {object} item
+ * @returns {string[]}
+ */
+function shotSignalNames(item) {
+  const names = (item?.modifiers || []).map((m) => m?.name).filter(Boolean);
+  const note = String(item?.customer_note || item?.note || '').trim();
+  if (note) names.push(note);
+  return names;
+}
+
+/**
  * Derive shot counts from line-item modifiers for Flow bean badges.
  * @returns {{ totalShots: number, isNonStandard: boolean, splitBeans: { decaf: number, house: number } | null }}
  */
 export function extractShotInfo(item) {
-  const names = (item?.modifiers || []).map((m) => m?.name).filter(Boolean);
+  const names = shotSignalNames(item);
   const split = parseSplitShotsFromNames(names);
   if (split && (split.decaf > 0 || split.house > 0)) {
     const total = split.decaf + split.house;

@@ -63,13 +63,6 @@ body.kds-flow-active {
   }
 }
 
-@keyframes flowOrderOut {
-  to {
-    opacity: 0;
-    transform: scale(0.98);
-  }
-}
-
 .flow-order {
   --flow-card-bg: #35322e;
   --flow-card-border: rgba(255, 255, 255, 0.1);
@@ -88,13 +81,11 @@ body.kds-flow-active {
   background: var(--flow-card-bg);
   border: 1px solid var(--flow-card-border);
   border-radius: 12px;
-  overflow: hidden;
+  overflow: visible;
   animation: flowOrderIn 0.3s ease both;
   list-style: none;
-}
-
-.flow-order.removing {
-  animation: flowOrderOut 0.3s ease forwards;
+  touch-action: pan-y;
+  will-change: transform;
 }
 
 .flow-order--allergy {
@@ -108,14 +99,14 @@ body.kds-flow-active {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 12px;
+  padding: 10px 14px;
   border-bottom: 1px solid rgba(164, 172, 131, 0.14);
   background: rgba(82, 91, 97, 0.83);
   cursor: pointer;
   user-select: none;
   transition: background 0.12s ease, filter 0.12s ease;
   flex-wrap: wrap;
-  min-height: 44px;
+  min-height: 52px;
 }
 
 .flow-order__header:hover {
@@ -143,17 +134,17 @@ body.kds-flow-active {
 
 .flow-order__service {
   color: var(--flow-text);
-  font-size: clamp(11px, 1.25vw, 14px);
+  font-size: clamp(14px, 1.5vw, 18px);
   font-weight: 700;
   letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 
 .flow-timer {
-  font-size: clamp(10px, 1.15vw, 12px);
+  font-size: clamp(13px, 1.45vw, 16px);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  padding: 3px 10px;
+  padding: 4px 12px;
   border-radius: 999px;
   flex-shrink: 0;
 }
@@ -183,13 +174,13 @@ body.kds-flow-active {
   grid-template-columns: minmax(200px, 2.45fr) minmax(0, 2.85fr) minmax(0, 1.5fr);
   gap: clamp(6px, 1.2vw, 14px);
   align-items: stretch;
-  min-height: 44px;
+  min-height: 48px;
   padding: 10px 12px 10px 8px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .flow-row[data-kds-line='food'] {
-  min-height: 48px;
+  min-height: 52px;
   /* background: rgba(255, 255, 255, 0.03); */
 }
 
@@ -219,7 +210,7 @@ body.kds-flow-active {
 .flow-row__badge-slot {
   flex: 0 0 auto;
   align-self: center;
-  min-width: 60px;
+  min-width: 72px;
   max-width: none;
   display: flex;
   align-items: center;
@@ -240,12 +231,12 @@ body.kds-flow-active {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 34px;
+  min-width: 40px;
   max-width: 100%;
-  min-height: 32px;
-  padding: 2px 10px;
+  min-height: 38px;
+  padding: 3px 12px;
   border-radius: 999px;
-  font-size: clamp(13px, 1.5vw, 16px);
+  font-size: clamp(16px, 1.75vw, 20px);
   font-weight: 800;
   line-height: 1;
   box-sizing: border-box;
@@ -301,7 +292,7 @@ body.kds-flow-active {
   min-width: 0;
   max-width: none;
   flex-shrink: 0;
-  min-height: 32px;
+  min-height: 38px;
   border-radius: 999px;
   overflow: hidden;
   box-shadow: none;
@@ -335,16 +326,16 @@ body.kds-flow-active {
   background: transparent;
   border: none;
   box-sizing: border-box;
-  min-height: 32px;
+  min-height: 38px;
 }
 
 .flow-bean--split .flow-bean__left {
-  padding: 2px 6px 2px 10px;
+  padding: 3px 7px 3px 12px;
 }
 
 .flow-bean--split .flow-bean__right {
-  padding: 2px 10px 2px 6px;
-  min-width: 24px;
+  padding: 3px 12px 3px 7px;
+  min-width: 28px;
   color: var(--flow-bean-accent, #333);
   font-weight: 800;
 }
@@ -376,7 +367,7 @@ body.kds-flow-active {
 }
 
 .flow-row__name {
-  font-size: clamp(13px, 1.6vw, 17px);
+  font-size: clamp(16px, 1.9vw, 22px);
   font-weight: 700;
   line-height: 1.3;
   color: var(--flow-text);
@@ -387,7 +378,7 @@ body.kds-flow-active {
 }
 
 .flow-row__size {
-  font-size: clamp(11px, 0.95vw, 12px);
+  font-size: clamp(13px, 1.15vw, 15px);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -421,12 +412,12 @@ body.kds-flow-active {
   flex-wrap: wrap;
   box-sizing: border-box;
   margin: 0;
-  padding: 2px 8px;
-  min-height: 34px;
-  min-width: 80px;
+  padding: 4px 10px;
+  min-height: 40px;
+  min-width: 96px;
   width: max-content;
   max-width: 100%;
-  font-size: clamp(12px, 1.55vw, 16px);
+  font-size: clamp(15px, 1.75vw, 19px);
   font-weight: 600;
   font-style: normal;
   letter-spacing: 0.03em;
@@ -448,7 +439,7 @@ body.kds-flow-active {
 .flow-milk-chip__temp {
   font-style: italic;
   font-weight: 400;
-  font-size: clamp(11px, 1.4vw, 14px);
+  font-size: clamp(14px, 1.65vw, 18px);
 }
 
 .flow-row__prep .flow-milk-chip {
@@ -457,19 +448,19 @@ body.kds-flow-active {
 
 /* Tier widths (scaled up for larger type): base +40 per texture +40 per temp */
 .flow-milk-chip--w50 {
-  min-width: 80px;
+  min-width: 96px;
   width: max-content;
   max-width: 100%;
 }
 
 .flow-milk-chip--w90 {
-  min-width: 80px;
+  min-width: 96px;
   width: max-content;
   max-width: 100%;
 }
 
 .flow-milk-chip--w130 {
-  min-width: 80px;
+  min-width: 96px;
   width: max-content;
   max-width: 100%;
 }
@@ -502,9 +493,9 @@ body.kds-flow-active {
 .flow-milk-chip--placeholder {
   visibility: hidden;
   background: transparent;
-  width: 80px;
-  min-width: 80px;
-  max-width: 80px;
+  width: 96px;
+  min-width: 96px;
+  max-width: 96px;
 }
 
 .flow-row__prep .flow-chip-pill,
@@ -515,8 +506,8 @@ body.kds-flow-active {
 .flow-chip-pill {
   display: inline-flex;
   align-items: center;
-  padding: 4px 10px;
-  font-size: clamp(11px, 1.3vw, 13px);
+  padding: 5px 12px;
+  font-size: clamp(14px, 1.5vw, 16px);
   font-weight: 600;
   border-radius: 999px;
   background: var(--flow-chip-pill-bg);
@@ -530,7 +521,7 @@ body.kds-flow-active {
 
 /* Muted syrup accents (Flow prep column): larger type, lighter weight, light text on all */
 .flow-chip-pill[class*='flow-chip-pill--syrup-'] {
-  font-size: clamp(12px, 1.5vw, 15px);
+  font-size: clamp(15px, 1.65vw, 18px);
   font-weight: 500;
   letter-spacing: 0.025em;
 }
@@ -594,8 +585,8 @@ body.kds-flow-active {
 .flow-chip-square {
   display: inline-flex;
   align-items: center;
-  padding: 4px 8px;
-  font-size: clamp(11px, 1.3vw, 13px);
+  padding: 5px 10px;
+  font-size: clamp(14px, 1.5vw, 16px);
   font-weight: 600;
   border-radius: 3px;
   background: rgba(255, 255, 255, 0.1);
@@ -604,7 +595,7 @@ body.kds-flow-active {
 }
 
 .flow-row__prep-text {
-  font-size: clamp(12px, 1.45vw, 15px);
+  font-size: clamp(15px, 1.65vw, 18px);
   color: var(--flow-muted);
   font-style: italic;
   line-height: 1.4;
@@ -637,6 +628,7 @@ body.kds-flow-active {
   color: var(--flow-text);
   line-height: 1;
   background: rgba(255, 255, 255, 0.04);
+  border-right: 2px solid rgba(255, 255, 255, 0.22);
 }
 
 .flow-row__note {
@@ -653,14 +645,32 @@ body.kds-flow-active {
 }
 
 .flow-row__allergy {
+  align-self: stretch;
+  box-sizing: border-box;
   width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 12px;
   background: var(--flow-allergy);
   color: #fff;
   font-weight: 700;
-  font-size: clamp(9px, 1vw, 10px);
-  padding: 3px 8px;
+  font-size: clamp(14px, 1.85vw, 20px);
+  line-height: 1.35;
+  padding: 8px 12px;
   border-radius: 4px;
-  text-align: center;
+  text-align: left;
+}
+
+.flow-row__allergy-icon {
+  flex: 0 0 auto;
+  font-size: 1.15em;
+  line-height: 1.2;
+}
+
+.flow-row__allergy-text {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .flow-order__no-drinks {
@@ -689,6 +699,7 @@ body.kds-flow-active {
 .flow-row.completed .flow-chip-pill,
 .flow-row.completed .flow-chip-square,
 .flow-row.completed .flow-row__note,
+.flow-row.completed .flow-row__allergy,
 .flow-row.completed .flow-row__prep-text,
 .flow-row.completed .flow-row__size {
   text-decoration: line-through;

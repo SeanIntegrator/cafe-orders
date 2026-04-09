@@ -8,6 +8,7 @@ const { kdsShouldDisplayOrder } = require('../lib/kds-visibility');
 const pool = require('../db');
 const { markOrderCompletedBySquareId } = require('../lib/orders-db');
 const { mergeKdsBoardOrdersWithWebAppDb } = require('../lib/kds-merge');
+const { normalizeKdsOrders } = require('../lib/kds-normalize');
 const { stampCardForCompletedSquareOrder } = require('../lib/loyalty');
 
 function triggerLoyaltyStamp(squareOrderId) {
@@ -52,7 +53,7 @@ module.exports = function createOrdersRouter(io) {
   router.get('/api/orders', async (req, res) => {
     try {
       const mergedList = await mergeKdsBoardOrdersWithWebAppDb(() => square.searchKdsBoardSquareOrders());
-      const orders = mergedList.filter(kdsShouldDisplayOrder);
+      const orders = normalizeKdsOrders(mergedList.filter(kdsShouldDisplayOrder));
       res.json({ ok: true, orders });
     } catch (err) {
       if (err.code === 'CONFIG') {

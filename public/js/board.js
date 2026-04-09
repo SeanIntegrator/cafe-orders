@@ -6,6 +6,7 @@ import {
   detachFlowDom,
   updateFlowTimers,
   rerenderFlowBoard,
+  animateOutFlowOrder,
 } from './flow-board.js';
 import {
   isEatInOrder,
@@ -295,22 +296,32 @@ export function renderCard(order) {
   resortBoard();
 }
 
+/**
+ * Remove an order from session state after its DOM node is gone (shared by flow animations + fast-path dismiss).
+ * Safe to call if `id` was already deleted.
+ */
+export function applyOrderDismissState(id) {
+  if (orders[id]) delete orders[id];
+  updateCount();
+  refreshBoardVisibility();
+}
+
 export function dismissOrder(id) {
   const card = document.getElementById(`card-${id}`);
   const flow = document.getElementById(`flow-order-${id}`);
-  const el = card || flow;
+  if (flow) {
+    animateOutFlowOrder(id);
+    return;
+  }
+  const el = card;
   if (!el) {
-    delete orders[id];
-    updateCount();
-    refreshBoardVisibility();
+    applyOrderDismissState(id);
     return;
   }
   el.classList.add('removing');
   setTimeout(() => {
     el.remove();
-    delete orders[id];
-    updateCount();
-    refreshBoardVisibility();
+    applyOrderDismissState(id);
   }, 300);
 }
 
