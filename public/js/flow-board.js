@@ -63,6 +63,15 @@ function applyDismissFromFlow(id) {
     });
 }
 
+/** GSAP transform target: inner wrapper keeps `.flow-order` rounded + overflow clipping. */
+function getFlowSlideEl(article) {
+  return article.querySelector('.flow-order__slide') || article;
+}
+
+function remainingFlowOrderArticles(exclude) {
+  return [...(flowGrid?.querySelectorAll('.flow-order') || [])].filter((node) => node !== exclude);
+}
+
 /**
  * Animate a flow card off-screen (header tap, socket close), then FLIP remaining cards.
  * @param {string} id - Square order id
@@ -79,20 +88,28 @@ export function animateOutFlowOrder(id) {
     return;
   }
 
-  el.style.animation = 'none';
-  const state = FlipPlugin.getState(flowGrid.querySelectorAll('.flow-order'));
+  const slide = getFlowSlideEl(el);
+  slide.style.animation = 'none';
+  const others = remainingFlowOrderArticles(el);
+  const state = others.length ? FlipPlugin.getState(others) : null;
   const rect = el.getBoundingClientRect();
   const deltaX = window.innerWidth - rect.left + 48;
-  const curX = parseFloat(g.getProperty(el, 'x', 'px')) || 0;
+  const curX = parseFloat(g.getProperty(slide, 'x', 'px')) || 0;
 
-  g.to(el, {
+  g.to(slide, {
     x: curX + deltaX,
     opacity: 0,
     duration: 0.22,
     ease: 'power2.in',
     onComplete: () => {
       el.remove();
-      FlipPlugin.from(state, { duration: 0.35, ease: 'power2.out' });
+      if (state) {
+        FlipPlugin.from(state, {
+          duration: 0.35,
+          ease: 'power2.out',
+          absolute: true,
+        });
+      }
       applyDismissFromFlow(id);
     },
   });
@@ -109,9 +126,16 @@ function completeSwipeDismiss(article, orderId, onDismiss) {
     onDismiss(orderId);
     return;
   }
-  const state = FlipPlugin.getState(flowGrid.querySelectorAll('.flow-order'));
+  const others = remainingFlowOrderArticles(article);
+  const state = others.length ? FlipPlugin.getState(others) : null;
   article.remove();
-  FlipPlugin.from(state, { duration: 0.35, ease: 'power2.out' });
+  if (state) {
+    FlipPlugin.from(state, {
+      duration: 0.35,
+      ease: 'power2.out',
+      absolute: true,
+    });
+  }
   onDismiss(orderId);
 }
 
@@ -144,9 +168,10 @@ function attachFlowOrderSwipeDismiss(article, orderId, onDismiss) {
       } catch (_) {
         /* ignore */
       }
+      const slide = getFlowSlideEl(article);
       if (g) {
-        article.style.animation = 'none';
-        g.set(article, { zIndex: 2 });
+        slide.style.animation = 'none';
+        g.set(slide, { zIndex: 2 });
       }
     },
     true
@@ -156,6 +181,7 @@ function attachFlowOrderSwipeDismiss(article, orderId, onDismiss) {
     'pointermove',
     (e) => {
       if (activePointer !== e.pointerId) return;
+      const slide = getFlowSlideEl(article);
       const dt = Math.max(1, e.timeStamp - lastT);
       velX = (e.clientX - lastX) / dt;
       lastX = e.clientX;
@@ -167,9 +193,9 @@ function attachFlowOrderSwipeDismiss(article, orderId, onDismiss) {
         return;
       }
       if (g) {
-        g.set(article, { x: dx });
+        g.set(slide, { x: dx });
       } else {
-        article.style.transform = `translateX(${dx}px)`;
+        slide.style.transform = `translateX(${dx}px)`;
       }
     },
     true
@@ -186,6 +212,7 @@ function attachFlowOrderSwipeDismiss(article, orderId, onDismiss) {
         /* ignore */
       }
 
+      const slide = getFlowSlideEl(article);
       const dx = Math.max(0, e.clientX - startX);
       const dy = e.clientY - startY;
       const cardW = article.offsetWidth || 320;
@@ -200,7 +227,7 @@ function attachFlowOrderSwipeDismiss(article, orderId, onDismiss) {
           suppressNextClickBubblingFromArticle(article);
           onDismiss(orderId);
         } else {
-          article.style.transform = '';
+          slide.style.transform = '';
         }
         return;
       }
@@ -211,13 +238,13 @@ function attachFlowOrderSwipeDismiss(article, orderId, onDismiss) {
       const shouldThrow = mostlyHorizontal && (throwByVel || throwByDist) && dx > 8;
 
       if (!shouldThrow) {
-        g.to(article, {
+        g.to(slide, {
           x: 0,
           opacity: 1,
           duration: 0.4,
           ease: 'back.out(1.7)',
           onComplete: () => {
-            g.set(article, { clearProps: 'zIndex' });
+            g.set(slide, { clearProps: 'zIndex' });
           },
         });
         return;
@@ -226,15 +253,15 @@ function attachFlowOrderSwipeDismiss(article, orderId, onDismiss) {
       suppressNextClickBubblingFromArticle(article);
       const rect = article.getBoundingClientRect();
       const deltaX = window.innerWidth - rect.left + 48;
-      const curX = parseFloat(g.getProperty(article, 'x', 'px')) || 0;
+      const curX = parseFloat(g.getProperty(slide, 'x', 'px')) || 0;
 
-      g.to(article, {
+      g.to(slide, {
         x: curX + deltaX,
         opacity: 0,
         duration: 0.35,
         ease: 'power2.out',
         onComplete: () => {
-          g.set(article, { clearProps: 'zIndex' });
+          g.set(slide, { clearProps: 'zIndex' });
           completeSwipeDismiss(article, orderId, onDismiss);
         },
       });
@@ -247,12 +274,13 @@ function attachFlowOrderSwipeDismiss(article, orderId, onDismiss) {
     (e) => {
       if (activePointer === e.pointerId) {
         activePointer = null;
+        const slide = getFlowSlideEl(article);
         if (g) {
-          g.to(article, {
+          g.to(slide, {
             x: 0,
             duration: 0.25,
             ease: 'power2.out',
-            onComplete: () => g.set(article, { clearProps: 'zIndex' }),
+            onComplete: () => g.set(slide, { clearProps: 'zIndex' }),
           });
         }
       }
@@ -456,32 +484,24 @@ export function renderFlowOrder(order, onComplete) {
     </div>`;
 
   article.innerHTML = `
-    <div class="flow-order__header" role="button" tabindex="0" aria-label="Call out order and mark done">
-      ${headerInner}
-    </div>
-    <div class="flow-order__body">
-      ${drinksHtml}
-      ${noDrinksLabel}
-      ${foodRows}
-      ${
-        drinkItems.length === 0 && foodItems.length === 0
-          ? '<div class="flow-order__empty-items">No items</div>'
-          : ''
-      }
+    <div class="flow-order__slide">
+      <div class="flow-order__header" role="region" aria-label="Order type and wait time">
+        ${headerInner}
+      </div>
+      <div class="flow-order__body">
+        ${drinksHtml}
+        ${noDrinksLabel}
+        ${foodRows}
+        ${
+          drinkItems.length === 0 && foodItems.length === 0
+            ? '<div class="flow-order__empty-items">No items</div>'
+            : ''
+        }
+      </div>
     </div>
   `;
 
   if (hasAllergens) article.classList.add('flow-order--allergy');
-
-  const header = article.querySelector('.flow-order__header');
-  const dismiss = () => done(order.id);
-  header?.addEventListener('click', dismiss);
-  header?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      dismiss();
-    }
-  });
 
   attachFlowOrderSwipeDismiss(article, order.id, done);
 

@@ -114,8 +114,14 @@ socket.on('new-order', (payload) => {
   });
 });
 
+/** Debounce so FLIP / swipe animations can finish before a full list refresh replaces flow DOM. */
+let orderUpdatedDebounce = null;
 socket.on('orderUpdated', () => {
-  loadLiveOrders(addOrUpdateOrder);
+  clearTimeout(orderUpdatedDebounce);
+  orderUpdatedDebounce = setTimeout(() => {
+    orderUpdatedDebounce = null;
+    loadLiveOrders(addOrUpdateOrder);
+  }, 450);
 });
 
 socket.on('orderCancelled', (payload) => {

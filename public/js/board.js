@@ -190,11 +190,32 @@ export function removeCardSilently(id) {
  *   - resetTimerFromSquare: if true and updating an existing card, use Square `created_at` instead of keeping the on-board timer.
  * Session rule: timer stays stable across poller / loadLiveOrders unless recall passes createdAtMs or resetTimerFromSquare.
  */
+function orderPayloadUnchangedForDom(prevOrder, nextOrder) {
+  if (!prevOrder || !nextOrder) return false;
+  try {
+    return JSON.stringify(prevOrder) === JSON.stringify(nextOrder);
+  } catch (_) {
+    return false;
+  }
+}
+
 export function addOrUpdateOrder(order, options = {}) {
   if (!order?.id) return;
   const isDemo = String(order.id || '').startsWith('demo-');
   if (!isDemo && !shouldShowOrderOnKds(order)) return;
   const prev = orders[order.id];
+  const existingFlowEl =
+    viewMode === 'flow' ? document.getElementById(`flow-order-${order.id}`) : null;
+  if (
+    prev &&
+    existingFlowEl &&
+    orderPayloadUnchangedForDom(prev.order, order) &&
+    !options.resetTimerFromSquare &&
+    typeof options.createdAtMs !== 'number'
+  ) {
+    orders[order.id] = { order, createdAt: prev.createdAt };
+    return;
+  }
   detachCardDom(order.id);
   detachFlowDom(order.id);
 

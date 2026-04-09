@@ -63,6 +63,7 @@ body.kds-flow-active {
   }
 }
 
+/* Outer node: layout only (transparent). Card chrome lives on .flow-order__slide so it moves with swipe/drag. */
 .flow-order {
   --flow-card-bg: #35322e;
   --flow-card-border: rgba(255, 255, 255, 0.1);
@@ -78,22 +79,28 @@ body.kds-flow-active {
   --flow-chip-pill-bg: rgba(255, 255, 255, 0.13);
   --flow-chip-pill-fg: #ddd9d0;
 
+  background: transparent;
+  border: none;
+  list-style: none;
+  touch-action: pan-y;
+}
+
+/* GSAP animates this layer; holds background + radius so nothing hollow shows mid-drag. */
+.flow-order__slide {
   background: var(--flow-card-bg);
   border: 1px solid var(--flow-card-border);
   border-radius: 12px;
-  overflow: visible;
+  overflow: hidden;
   animation: flowOrderIn 0.3s ease both;
-  list-style: none;
-  touch-action: pan-y;
   will-change: transform;
 }
 
-.flow-order--allergy {
+.flow-order--allergy .flow-order__slide {
   border-color: rgba(192, 57, 43, 0.55);
   box-shadow: 0 0 0 1px rgba(192, 57, 43, 0.25);
 }
 
-/* Clickable header = dismiss (call out); order type left, timer right */
+/* Order type + timer; tap reserved for future details (not dismiss). */
 .flow-order__header {
   display: flex;
   align-items: center;
@@ -102,19 +109,10 @@ body.kds-flow-active {
   padding: 10px 14px;
   border-bottom: 1px solid rgba(164, 172, 131, 0.14);
   background: rgba(82, 91, 97, 0.83);
-  cursor: pointer;
+  cursor: default;
   user-select: none;
-  transition: background 0.12s ease, filter 0.12s ease;
   flex-wrap: wrap;
   min-height: 52px;
-}
-
-.flow-order__header:hover {
-  background: rgba(164, 172, 131, 0.13);
-}
-
-.flow-order__header:active {
-  filter: brightness(0.95);
 }
 
 .flow-order__header-left {
@@ -660,17 +658,23 @@ body.kds-flow-active {
   padding: 8px 12px;
   border-radius: 4px;
   text-align: left;
+  transform: skew(-25deg);
 }
 
 .flow-row__allergy-icon {
   flex: 0 0 auto;
   font-size: 1.15em;
   line-height: 1.2;
+    transform: skew(25deg);
+
 }
 
 .flow-row__allergy-text {
   flex: 1 1 auto;
   min-width: 0;
+  text-transform: uppercase;
+    transform: skew(25deg);
+
 }
 
 .flow-order__no-drinks {
@@ -683,6 +687,7 @@ body.kds-flow-active {
   text-transform: uppercase;
   text-align: center;
   color: var(--flow-muted);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .flow-order__empty-items {
