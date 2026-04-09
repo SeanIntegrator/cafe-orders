@@ -9,7 +9,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.75rem;
+  font-size: 0.9rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -72,23 +72,31 @@
 .header-recall-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 10px;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  height: 44px;
+  padding: 0 16px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
 .header-recall-btn__icon {
-  font-size: 0.95rem;
+  font-size: 1.15rem;
   line-height: 1;
 }
 
 .header-menu-btn {
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 9px;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text);
-  font-size: 1rem;
+  font-size: 1.2rem;
   cursor: pointer;
   line-height: 1;
 }
@@ -230,6 +238,23 @@
 
 .demo-btn--primary:active {
   filter: brightness(0.92);
+}
+
+/* Recall: same palette as Flow timer amber warning (`.flow-timer--amber`) */
+.header-recall-btn.demo-btn--primary {
+  color: #efd47a;
+  background: #4a4024;
+  border-color: rgba(239, 212, 122, 0.42);
+}
+
+.header-recall-btn.demo-btn--primary:hover {
+  color: #faf3d4;
+  background: #5c4f32;
+  border-color: rgba(239, 212, 122, 0.55);
+}
+
+.header-recall-btn.demo-btn--primary:active {
+  filter: brightness(0.95);
 }
 
 .demo-btn:disabled {
