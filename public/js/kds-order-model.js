@@ -180,9 +180,24 @@ export function serviceLabelUpper(order, isEatIn) {
 }
 
 /**
- * Flow view: one drink row model (3 columns).
+ * Shared Flow prep buckets (syrups, toppings, extras) — same pipeline as buildFlowDrinkModel.
+ * @returns {{
+ *   names: string[],
+ *   noteRaw: string,
+ *   milkSnippets: string[],
+ *   milkKey: string,
+ *   milkLabel: string | null,
+ *   hasMilkModifier: boolean,
+ *   sizeFromModifier: string | null,
+ *   textureMod: string | null,
+ *   tempMod: string | null,
+ *   syrupMods: string[],
+ *   toppingMods: string[],
+ *   extraSquare: string[],
+ *   extraRound: string[],
+ * }}
  */
-export function buildFlowDrinkModel(item, modifierSortOrder, order, showAllergyBar, allergyLabelEscaped) {
+function extractFlowDrinkPrepBuckets(item, modifierSortOrder, order) {
   const names = getModifiers(item, modifierSortOrder)
     .filter((n) => !isRegularSizeModifierLabel(n))
     .filter((n) => !normalizeServiceModifierOptionName(n));
@@ -239,6 +254,173 @@ export function buildFlowDrinkModel(item, modifierSortOrder, order, showAllergyB
     if (kind === 'round') extraRound.push(n);
     else extraSquare.push(n);
   }
+
+  return {
+    names,
+    noteRaw,
+    milkSnippets,
+    milkKey,
+    milkLabel,
+    hasMilkModifier,
+    sizeFromModifier,
+    textureMod,
+    tempMod,
+    syrupMods,
+    toppingMods,
+    extraSquare,
+    extraRound,
+  };
+}
+
+function normalizeFlowClusterKey(s) {
+  return String(s || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+/** Syrups, toppings, and extra prep tokens for Flow line clustering (shared modifier edges). */
+function flowClusterTokenSetFromBuckets(buckets) {
+  const { syrupMods, toppingMods, extraSquare, extraRound } = buckets;
+  const tokens = new Set();
+  for (const n of syrupMods) {
+    const p = flowSyrupChipParts(n);
+    if (p.variant) tokens.add(`syrup:${p.variant}`);
+    else {
+      const d = normalizeFlowClusterKey(p.display);
+      if (d) tokens.add(`syrup:${d}`);
+    }
+  }
+  for (const n of toppingMods) {
+    const k = normalizeFlowClusterKey(n);
+    if (k) tokens.add(`top:${k}`);
+  }
+  for (const n of extraSquare) {
+    const k = normalizeFlowClusterKey(n);
+    if (k) tokens.add(`sq:${k}`);
+  }
+  for (const n of extraRound) {
+    const k = normalizeFlowClusterKey(n);
+    if (k) tokens.add(`rnd:${k}`);
+  }
+  return tokens;
+}
+
+function clusterTokenSetsIntersect(a, b) {
+  if (a.size === 0 || b.size === 0) return false;
+  for (const x of a) {
+    if (b.has(x)) return true;
+  }
+  return false;
+}
+
+/**
+ * Flow: reorder drink lines — group by milk (order of first occurrence), then cluster by shared
+ * prep tokens (syrup / topping / extras). Within multi-line clusters, sort by drink name
+ * descending so longer names (e.g. Flat White) tend before shorter (Cortado) when tied on modifiers.
+ * @param {object[]} drinkItems
+ * @param {Map} modifierSortOrder
+ * @param {object} order
+ * @returns {object[]}
+ */
+export function sortDrinkItemsForFlow(drinkItems, modifierSortOrder, order) {
+  if (!Array.isArray(drinkItems) || drinkItems.length <= 1) return drinkItems;
+
+  const enriched = drinkItems.map((item, origIndex) => {
+    const buckets = extractFlowDrinkPrepBuckets(item, modifierSortOrder, order);
+    return {
+      item,
+      origIndex,
+      milkKey: buckets.milkKey,
+      tokens: flowClusterTokenSetFromBuckets(buckets),
+    };
+  });
+
+  const milkKeysInOrder = [];
+  const seen = new Set();
+  for (const e of enriched) {
+    if (!seen.has(e.milkKey)) {
+      seen.add(e.milkKey);
+      milkKeysInOrder.push(e.milkKey);
+    }
+  }
+
+  const result = [];
+  for (const milkKey of milkKeysInOrder) {
+    const group = enriched.filter((e) => e.milkKey === milkKey);
+    const n = group.length;
+    const parent = Array.from({ length: n }, (_, i) => i);
+
+    function find(i) {
+      return parent[i] === i ? i : (parent[i] = find(parent[i]));
+    }
+    function union(i, j) {
+      const pi = find(i);
+      const pj = find(j);
+      if (pi !== pj) parent[pj] = pi;
+    }
+
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        if (clusterTokenSetsIntersect(group[i].tokens, group[j].tokens)) union(i, j);
+      }
+    }
+
+    const byRoot = new Map();
+    for (let i = 0; i < n; i++) {
+      const r = find(i);
+      if (!byRoot.has(r)) byRoot.set(r, []);
+      byRoot.get(r).push(group[i]);
+    }
+
+    const components = [...byRoot.values()];
+    components.sort((a, b) => {
+      const minA = Math.min(...a.map((x) => x.origIndex));
+      const minB = Math.min(...b.map((x) => x.origIndex));
+      return minA - minB;
+    });
+
+    for (const comp of components) {
+      if (comp.length === 1) {
+        result.push(comp[0].item);
+      } else {
+        comp.sort((a, b) => {
+          const nameA = String(a.item.name || 'Item');
+          const nameB = String(b.item.name || 'Item');
+          const c = nameB.localeCompare(nameA, undefined, { sensitivity: 'base' });
+          if (c !== 0) return c;
+          return a.origIndex - b.origIndex;
+        });
+        for (const x of comp) result.push(x.item);
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Flow view: one drink row model (3 columns).
+ */
+export function buildFlowDrinkModel(item, modifierSortOrder, order, showAllergyBar, allergyLabelEscaped) {
+  const buckets = extractFlowDrinkPrepBuckets(item, modifierSortOrder, order);
+  const {
+    names,
+    noteRaw,
+    milkSnippets,
+    milkKey,
+    milkLabel,
+    hasMilkModifier,
+    sizeFromModifier,
+    textureMod,
+    tempMod,
+    syrupMods,
+    toppingMods,
+    extraSquare,
+    extraRound,
+  } = buckets;
+
+  const primaryBean = beanBadgeFromItem(item, order);
 
   const flowMilkScanText = buildFlowMilkScanText(names, noteRaw);
   const textureFromParser = parseFlowMilkTextureFromText(flowMilkScanText);

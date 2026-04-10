@@ -98,9 +98,12 @@ export function getServiceLabel(order, isEatIn, serviceOptionIds) {
 
 /**
  * Show espresso bean badges only for coffee-style drinks (not matcha/chai/hot choc/tea-only).
+ * Matcha/chai drinks often include "latte" in the name — exclude those before keyword checks.
  */
 export function isCoffeeBeanItem(item) {
   const name = (item?.name || '').toLowerCase();
+  if (/\bmatcha\b/.test(name)) return false;
+  if (/\bchai\b/.test(name)) return false;
   if (
     [
       'espresso',

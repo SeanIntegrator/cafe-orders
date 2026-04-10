@@ -6,6 +6,7 @@ import {
   buildFlowDrinkModel,
   buildFlowFoodModel,
   partitionLineItems,
+  sortDrinkItemsForFlow,
 } from './kds-order-model.js';
 
 const DEFAULT_SHOTS = 2;
@@ -370,14 +371,14 @@ function renderFlowDrinkRow(model) {
   return `
     <div class="flow-row" data-kds-line="drink">
       <div class="flow-row__base">
-        <span class="flow-row__qty" aria-label="Quantity ${model.qty}">${escapeHtml(String(model.qty))}</span>
-        ${badgeSlotHtml}
+        <span class="flow-row__qty${model.qty > 1 ? ' flow-row__qty--multi' : ''}" aria-label="Quantity ${model.qty}">${escapeHtml(String(model.qty))}</span>
         <div class="flow-row__title">
           <div class="flow-row__title-stack">
             <span class="flow-row__name">${escapeHtml(model.name)}</span>
             ${sizeHtml}
           </div>
         </div>
+        ${badgeSlotHtml}
       </div>
       ${prepHtml}
       <div class="flow-row__detail">
@@ -400,13 +401,13 @@ function renderFlowFoodRow(model) {
   return `
     <div class="flow-row" data-kds-line="food">
       <div class="flow-row__base">
-        <span class="flow-row__qty" aria-label="Quantity ${model.qty}">${escapeHtml(String(model.qty))}</span>
-        <div class="flow-row__badge-slot" aria-hidden="true"></div>
+        <span class="flow-row__qty${model.qty > 1 ? ' flow-row__qty--multi' : ''}" aria-label="Quantity ${model.qty}">${escapeHtml(String(model.qty))}</span>
         <div class="flow-row__title">
           <div class="flow-row__title-stack">
             <span class="flow-row__name">${escapeHtml(model.name)}</span>
           </div>
         </div>
+        <div class="flow-row__badge-slot" aria-hidden="true"></div>
       </div>
       <div class="flow-row__prep">${prepHtml}</div>
       <div class="flow-row__detail">${lineAllergyHtml}</div>
@@ -456,8 +457,9 @@ export function renderFlowOrder(order, onComplete) {
   const allergyLabelEscaped = webAllergens.map((a) => escapeHtml(String(a))).join(', ');
 
   const { drinkItems, foodItems } = partitionLineItems(order);
+  const drinkItemsFlow = sortDrinkItemsForFlow(drinkItems, modifierSortOrder, order);
 
-  const drinksHtml = drinkItems
+  const drinksHtml = drinkItemsFlow
     .map((item) =>
       renderFlowDrinkRow(
         buildFlowDrinkModel(item, modifierSortOrder, order, hasAllergens, allergyLabelEscaped)

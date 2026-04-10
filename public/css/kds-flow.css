@@ -20,6 +20,7 @@ body.kds-flow-active {
   flex-direction: column;
   gap: 24px;
   padding: 10px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
   align-content: flex-start;
   align-items: stretch;
   overflow-x: hidden;
@@ -169,8 +170,8 @@ body.kds-flow-active {
 
 /**
  * 3 columns: base (qty + title) | prep | detail (notes, allergens).
- * Drinks: base +20% vs legacy 2.45fr; detail max share reduced so empty detail can shrink.
- * Food: base +50% vs legacy 2.45fr (no bean/milk column pressure); prep/detail share reduced.
+ * Drinks: base & detail use intrinsic (auto) widths — only prep grows (1fr) so syrups stay left-aligned
+ * and short titles do not steal horizontal space. Food: fr-based (see below).
  */
 .flow-row {
   display: grid;
@@ -181,9 +182,32 @@ body.kds-flow-active {
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* Drinks — base +20% (2.45→2.94fr); third track 1.2fr when detail has content (below). */
+/* Drinks — auto | 1fr | auto: prep column absorbs free space; base/detail size to content */
 .flow-row[data-kds-line='drink'] {
-  grid-template-columns: minmax(240px, 2.94fr) minmax(0, 2.85fr) minmax(0, 1.2fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  /* stretch (not center) so .flow-row__base fills row height; center shrink-wraps the base when
+     prep wraps taller, leaving .flow-row__qty short — most visible on non-coffee lines without beans. */
+  align-items: stretch;
+}
+
+.flow-row[data-kds-line='drink']:not(:has(.flow-row__note, .flow-row__allergy)) {
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 0);
+}
+
+.flow-row[data-kds-line='drink']:not(:has(.flow-row__note, .flow-row__allergy)) .flow-row__detail {
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Cap detail width so short notes wrap instead of widening the track and shifting prep */
+.flow-row[data-kds-line='drink'] .flow-row__detail {
+  justify-self: end;
+  width: fit-content;
+  max-width: min(12rem, 38vw);
+}
+
+.flow-row[data-kds-line='drink'] .flow-row__detail:has(.flow-row__allergy) {
+  max-width: min(22rem, 100%);
 }
 
 /* Food — base +50% (2.45→3.675fr). With line allergy: three balanced tracks; else collapse detail. */
@@ -196,23 +220,12 @@ body.kds-flow-active {
   grid-template-columns: minmax(300px, 3.675fr) minmax(0, 2.1fr) minmax(0, 1.05fr);
 }
 
-/*
- * Drink detail column: template literals leave whitespace in .flow-row__detail, so :empty is unreliable.
- * Use real content selectors. With note or allergy: legacy 2.45 : 2.85 : 1.5 shape (2.94 : 2.85 : 1.5).
- * With neither: collapse third column so prep can use the space.
- */
-.flow-row[data-kds-line='drink']:has(.flow-row__note, .flow-row__allergy) {
-  grid-template-columns: minmax(240px, 2.94fr) minmax(0, 2.85fr) minmax(0, 1.5fr);
-}
-
-.flow-row[data-kds-line='drink']:not(:has(.flow-row__note, .flow-row__allergy)) {
-  grid-template-columns: minmax(240px, 2.94fr) minmax(0, 3.1fr) minmax(0, 0);
-}
-
 .flow-row[data-kds-line='food'] .flow-row__name {
   font-style: italic;
   font-weight: 400;
   padding-inline-end: 0.3em;
+  font-size: clamp(18px, 2.1vw, 24px);
+
 }
 
 .flow-row[data-kds-line='food'] .flow-row__prep-text {
@@ -226,21 +239,35 @@ body.kds-flow-active {
 .flow-row__base {
   display: flex;
   align-items: stretch;
-  gap: 0 16px;
-  min-width: 0;
+  column-gap: 16px;
+  row-gap: 0;
+  /* Floor width for qty + title + optional beans (grid col auto still sizes content above this) */
+  min-width: 280px;
   flex-wrap: nowrap;
 }
 
-/* Badge column: floor width matches ~one split pill so drink names align; grows if two beans */
+/*
+ * Bean badges follow the line name (qty | title | beans). Width follows content; empty slot collapses.
+ * Slight negative margin tightens title→badge spacing vs qty→title.
+ */
 .flow-row__badge-slot {
   flex: 0 0 auto;
   align-self: center;
-  min-width: 86px;
+  min-width: 0;
+  width: max-content;
   max-width: none;
   display: flex;
   align-items: center;
   justify-content: flex-start;
   box-sizing: border-box;
+}
+
+.flow-row[data-kds-line='drink'] .flow-row__badge-slot {
+  margin-inline-start: -4px;
+}
+
+.flow-row[data-kds-line='food'] .flow-row__badge-slot {
+  display: none;
 }
 
 .flow-row__badge-slot .flow-row__beans {
@@ -256,89 +283,78 @@ body.kds-flow-active {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 48px;
+  min-width: 44px;
   max-width: 100%;
-  min-height: 46px;
-  padding: 4px 14px;
+  min-height: 32px;
+  padding: 4px 2px;
   border-radius: 999px;
-  font-size: clamp(19px, 2.1vw, 24px);
+  font-size: 17px;
+  transform: translate(-2px, -9px);
   font-weight: 800;
   line-height: 1;
+  letter-spacing: 0.02em;
   box-sizing: border-box;
   flex-shrink: 1;
   overflow: hidden;
   text-overflow: ellipsis;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
 .flow-bean--ghost {
-  background: rgba(255, 255, 255, 0.11);
+  background: rgba(255, 255, 255, 0.08);
   color: var(--flow-muted);
-  opacity: 0.42;
-  border: 1px solid transparent;
+  opacity: 0.35;
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .flow-bean--elevated.flow-bean--ho {
   --flow-bean-accent: #ddd2c0;
-  background: rgba(255, 255, 255, 0.18);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.12));
   color: var(--flow-text);
   opacity: 1;
-  border: 1px solid rgba(255, 255, 255, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.32);
 }
 
 .flow-bean--elevated.flow-bean--dc {
   --flow-bean-accent: #52486f;
-  background: #52486f;
+  background: linear-gradient(180deg, #5d5282, #4a3f6a);
   color: #f0ecff;
-  border: 1px solid rgba(190, 170, 255, 0.38);
+  border: 1px solid rgba(190, 170, 255, 0.45);
 }
 
 .flow-bean--elevated.flow-bean--gu {
   --flow-bean-accent: #866238;
-  background: #866238;
+  background: linear-gradient(180deg, #966a42, #7a5630);
   color: #faf4e8;
-  border: 1px solid rgba(235, 190, 115, 0.42);
+  border: 1px solid rgba(235, 190, 115, 0.5);
 }
 
 .flow-bean--elevated.flow-bean--et {
   --flow-bean-accent: #356a5a;
-  background: #356a5a;
+  background: linear-gradient(180deg, #3d7a68, #2f5c4e);
   color: #e8faf4;
-  border: 1px solid rgba(135, 210, 185, 0.38);
+  border: 1px solid rgba(135, 210, 185, 0.45);
 }
 
-/* Split shot: one pill, bean fill on outer; white panel = rotated ::after behind shot digit */
+/* Split / alt shots: no translate (normal variant offset is for single-pill only) */
 .flow-bean--split {
   position: relative;
   display: inline-flex;
   flex-direction: row;
   flex-wrap: nowrap;
-  align-items: center;
+  align-items: stretch;
   padding: 0;
   min-width: 0;
   max-width: none;
   flex-shrink: 0;
-  min-height: 46px;
+  min-height: 32px;
   border-radius: 999px;
   overflow: hidden;
-  box-shadow: none;
-}
-
-.flow-bean--split::after {
-  content: '';
-  position: absolute;
-  top: -34%;
-  bottom: -34%;
-  right: -14%;
-  width: 54%;
-  z-index: 0;
-  pointer-events: none;
-  background: #fcfcfc;
-  transform: rotate(16deg);
-  transform-origin: 100% 50%;
-}
-
-.flow-bean--ghost.flow-bean--split::after {
-  background: #f2f0eb;
+  /* transform: none; */
+  font-size: 19px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
 .flow-bean--split .flow-bean__left,
@@ -348,29 +364,46 @@ body.kds-flow-active {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: transparent;
-  border: none;
   box-sizing: border-box;
-  min-height: 46px;
+  min-height: 32px;
 }
 
 .flow-bean--split .flow-bean__left {
-  padding: 4px 8px 4px 14px;
+  padding: 4px 8px 4px 10px;
+  border: none;
 }
 
 .flow-bean--split .flow-bean__right {
-  padding: 4px 14px 4px 8px;
-  min-width: 34px;
-  color: var(--flow-bean-accent, #333);
+  padding: 4px 10px 4px 8px;
+  min-width: 32px;
   font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  border-left: 1px solid rgba(0, 0, 0, 0.14);
+  background: #ECECEC;
+  font-size: 20px;
+  color: #252320;
 }
 
 .flow-bean--elevated.flow-bean--ho.flow-bean--split .flow-bean__right {
-  color: #2c2a26;
+  color: #252320;
+}
+
+.flow-bean--elevated.flow-bean--dc.flow-bean--split .flow-bean__right {
+  color: #252320;
+}
+
+.flow-bean--elevated.flow-bean--gu.flow-bean--split .flow-bean__right {
+  color: #252320;
+}
+
+.flow-bean--elevated.flow-bean--et.flow-bean--split .flow-bean__right {
+  color: #252320;
 }
 
 .flow-bean--ghost.flow-bean--split .flow-bean__right {
+  background: rgba(255, 255, 255, 0.1);
   color: var(--flow-muted);
+  border-left-color: rgba(255, 255, 255, 0.12);
 }
 
 .flow-row__title {
@@ -380,6 +413,11 @@ body.kds-flow-active {
   min-width: 0;
   flex: 1;
   padding-left: 0;
+}
+
+/* Drink titles: do not stretch the base column; wrap up to 3 lines instead of one-line + fr growth */
+.flow-row[data-kds-line='drink'] .flow-row__title {
+  flex: 0 1 auto;
 }
 
 .flow-row__title-stack {
@@ -400,6 +438,17 @@ body.kds-flow-active {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
+}
+
+.flow-row[data-kds-line='drink'] .flow-row__name {
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .flow-row__size {
@@ -465,6 +514,10 @@ body.kds-flow-active {
   font-style: italic;
   font-weight: 400;
   font-size: clamp(17px, 1.98vw, 22px);
+}
+
+.flow-milk-chip__texture{
+  margin-right: 3px;
 }
 
 .flow-row__prep .flow-milk-chip {
@@ -539,7 +592,7 @@ body.kds-flow-active {
   color: var(--flow-chip-pill-fg);
   border: 1px solid rgba(255, 255, 255, 0.1);
   white-space: nowrap;
-  max-width: 180px;
+  max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -645,6 +698,7 @@ body.kds-flow-active {
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
+  opacity: 0.7;
   margin: -12px 0 -12px -10px;
   padding: 0 14px 0 12px;
   font-size: clamp(19px, 2.52vw, 29px);
@@ -656,17 +710,26 @@ body.kds-flow-active {
   border-right: 2px solid rgba(255, 255, 255, 0.22);
 }
 
+.flow-row__qty--multi {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.3);
+  border-right-width: 3px;
+  border-right-color: rgba(255, 255, 255, 0.6);
+  text-shadow: 2px 2px 3px rgb(100, 99, 99);
+}
+
 .flow-row__note {
-  font-size: clamp(11px, 1.2vw, 13px);
+  font-size: clamp(13px, 1.45vw, 16px);
   font-style: italic;
   color: var(--flow-muted);
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
+  line-height: 1.35;
 }
 
 .flow-row__allergy {
@@ -743,17 +806,12 @@ body.kds-flow-active {
     padding: 12px 19px 12px 10px;
   }
 
-  /* Legacy wide: 2.15 : 3.05 : 1.6 — drink base ×1.2, detail ×0.8 for sparse / ×1.0 with note+allergy */
-  .flow-row[data-kds-line='drink'] {
-    grid-template-columns: minmax(264px, 2.58fr) minmax(0, 3.05fr) minmax(0, 1.28fr);
+  .flow-row[data-kds-line='drink'] .flow-row__detail {
+    max-width: min(13.5rem, 34vw);
   }
 
-  .flow-row[data-kds-line='drink']:has(.flow-row__note, .flow-row__allergy) {
-    grid-template-columns: minmax(264px, 2.58fr) minmax(0, 3.05fr) minmax(0, 1.6fr);
-  }
-
-  .flow-row[data-kds-line='drink']:not(:has(.flow-row__note, .flow-row__allergy)) {
-    grid-template-columns: minmax(264px, 2.58fr) minmax(0, 3.35fr) minmax(0, 0);
+  .flow-row[data-kds-line='drink'] .flow-row__detail:has(.flow-row__allergy) {
+    max-width: min(26rem, 100%);
   }
 
   .flow-row[data-kds-line='food'] {

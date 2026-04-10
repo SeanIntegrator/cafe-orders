@@ -4,7 +4,16 @@ body {
   background: radial-gradient(circle at top left, var(--bg), var(--surface-alt));
   color: var(--text);
   font-family: 'Funnel Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  /*
+   * 100vh = layout viewport; on tablet/phone browsers it is often *taller* than the
+   * visible area while chrome (URL bar) is shown, so this flex shell extends below
+   * the screen. overflow:hidden on body prevents scrolling the page, and the inner
+   * board scroll ends with the last items still under the fold. 100dvh follows the
+   * dynamic (on-screen) viewport; DevTools device mode often uses a single viewport
+   * so the bug does not reproduce there.
+   */
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
