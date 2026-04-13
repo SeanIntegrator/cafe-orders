@@ -79,8 +79,6 @@ const socket = io({
 socket.on('connect', () => {
   console.log('Connected to server');
   setConnectionStatus('connected');
-  loadModifierCategories();
-  loadLiveOrders(addOrUpdateOrder);
 });
 
 socket.on('disconnect', () => {
@@ -89,6 +87,7 @@ socket.on('disconnect', () => {
 
 socket.on('reconnect', () => {
   setConnectionStatus('connected');
+  loadModifierCategories().then(() => loadLiveOrders(addOrUpdateOrder));
 });
 
 socket.on('reconnect_failed', () => {
