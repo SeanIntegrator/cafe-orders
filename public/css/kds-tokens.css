@@ -32,4 +32,9 @@
   --kds-milk-soy-text: #dceedd;
   --kds-milk-coconut-bg: #27424c;
   --kds-milk-coconut-text: #d8eef5;
+  /* Flow KDS bean & shot notation tokens */
+  --flow-bean-token-dc: #ce3514d9;
+  --flow-bean-token-gu: cyan;
+  --flow-bean-token-et: yellow;
+  --flow-bean-token-ho: #c8a050;
 }

@@ -320,7 +320,8 @@ body.kds-flow-active {
 /*
  * Bean badges follow the line name (qty | title | beans). Width follows content; empty slot collapses.
  * Slight negative margin tightens title→badge spacing vs qty→title.
- */
+ * --- Commented out Apr 2026: replaced by .flow-bean-token bracket notation ---
+ *
 .flow-row__badge-slot {
   flex: 0 0 auto;
   align-self: center;
@@ -361,7 +362,6 @@ body.kds-flow-active {
   border-radius: 999px;
   border-bottom-left-radius: 2px;
   font-size: 19px;
-  /* transform: translate(-2px, -6px); */
   font-weight: 800;
   line-height: 1;
   letter-spacing: 0.04em;
@@ -408,7 +408,6 @@ body.kds-flow-active {
   border: 1px solid rgba(135, 210, 185, 0.45);
 }
 
-/* Split / alt shots: no translate (normal variant offset is for single-pill only) */
 .flow-bean--split {
   position: relative;
   display: inline-flex;
@@ -423,7 +422,6 @@ body.kds-flow-active {
   border-radius: 999px;
   border-bottom-left-radius: 2px;
   overflow: hidden;
-  /* transform: none; */
   font-size: 19px;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
@@ -477,6 +475,41 @@ body.kds-flow-active {
   background: rgba(255, 255, 255, 0.1);
   color: var(--flow-muted);
   border-left-color: rgba(255, 255, 255, 0.12);
+}
+*/
+
+.flow-bean-token {
+  font-family: var(--font-mono), monospace;
+  font-size: clamp(22px, 2.1vw, 26px);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  flex-shrink: 0;
+  align-self: center;
+  white-space: nowrap;
+}
+
+/* Tighter gap than literal spaces between [ ] and inner text */
+.flow-bean-token__body {
+  display: inline;
+  padding-inline: 0.08em;
+  letter-spacing: inherit;
+}
+
+.flow-bean-token:empty {
+  display: none;
+}
+
+.flow-bean-token--dc {
+  color: var(--flow-bean-token-dc);
+}
+.flow-bean-token--gu {
+  color: var(--flow-bean-token-gu);
+}
+.flow-bean-token--et {
+  color: var(--flow-bean-token-et);
+}
+.flow-bean-token--ho {
+  color: var(--flow-bean-token-ho);
 }
 
 .flow-row__title {
@@ -883,18 +916,11 @@ body.kds-flow-active {
 
 }
 
-.flow-order__no-drinks {
+/* Replaces former "No drinks" row: keeps vertical rhythm when ticket is food-only (no label) */
+.flow-order__food-only-spacer {
   width: 100%;
   box-sizing: border-box;
-  padding: 12px 14px 18px 14px;
-  font-size: clamp(13px, 1.4vw, 16px);
-  font-weight: 700;
-  letter-spacing: 0.07em;
-  /* text-decoration: underline; */
-  text-transform: uppercase;
-  text-align: center;
-  transform: translateX(20px);
-  color: var(--flow-muted);
+  padding-block: 10px;
 }
 
 .flow-order__empty-items {
@@ -906,22 +932,19 @@ body.kds-flow-active {
 /* Completed line toggle */
 .flow-row.completed .flow-row__name,
 .flow-row.completed .flow-row__qty,
-.flow-row.completed .flow-bean,
+.flow-row.completed .flow-bean-token,
 .flow-row.completed .flow-milk-chip,
 .flow-row.completed .flow-chip-pill,
 .flow-row.completed .flow-chip-square,
 .flow-row.completed .flow-row__note,
 .flow-row.completed .flow-row__allergy,
 .flow-row.completed .flow-row__prep-text,
-.flow-row.completed .flow-row__size,
-.flow-row.completed .flow-row__food-line__label {
+.flow-row.completed .flow-row__size {
   text-decoration: line-through;
   opacity: 0.45;
 }
 
-.flow-row.completed .flow-row__food-line__rule {
-  opacity: 0.45;
-}
+/* FOOD ribbon is section chrome, not line content — do not strike through */
 
 @media (min-width: 1200px) {
   .flow-row {

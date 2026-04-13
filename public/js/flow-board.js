@@ -11,6 +11,13 @@ import {
 
 const DEFAULT_SHOTS = 2;
 
+/** Flow token display labels (3-letter mixed case); CSS still uses --dc / --gu / --et. */
+const BEAN_TOKEN_LABEL = /** @type {Record<string, string>} */ ({
+  dc: 'Dcf',
+  gu: 'Gst',
+  et: 'Eth',
+});
+
 /**
  * @param {{ texture?: string, milk?: string, temp?: string }} segments
  */
@@ -139,10 +146,13 @@ function completeSwipeDismiss(article, orderId, onDismiss) {
   onDismiss(orderId);
 }
 
-const FLOW_FADE_DISMISS_MS = 0.38;
+/** Double-dismiss: FLIP reflow + top-anchored collapse (shared ease; outgoing slightly shorter so collapse clears before reflow ends). */
+const FLOW_DOUBLE_DISMISS_DURATION = 0.32;
+const FLOW_DOUBLE_DISMISS_OUT_DURATION = FLOW_DOUBLE_DISMISS_DURATION * 0.7;
+const FLOW_DOUBLE_DISMISS_EASE = 'power2.inOut';
 
 /**
- * Double-click dismiss: fade the card out while siblings reflow immediately (absolute lift + FLIP).
+ * Double-click dismiss: collapse the card while siblings reflow (absolute lift + FLIP).
  * @param {HTMLElement} article
  * @param {string} orderId
  * @param {(id: string) => void} onDismiss
@@ -160,7 +170,14 @@ function beginFlowOrderFadeDismiss(article, orderId, onDismiss) {
   const slide = getFlowSlideEl(article);
   slide.style.animation = 'none';
   g.killTweensOf(slide);
-  g.set(slide, { x: 0, opacity: 1, zIndex: 3 });
+  g.set(slide, {
+    x: 0,
+    y: 0,
+    scaleY: 1,
+    opacity: 1,
+    transformOrigin: '50% 0%',
+    zIndex: 3,
+  });
 
   const others = remainingFlowOrderArticles(article);
   const flipState = others.length ? FlipPlugin.getState(others) : null;
@@ -177,23 +194,22 @@ function beginFlowOrderFadeDismiss(article, orderId, onDismiss) {
 
   if (flipState) {
     FlipPlugin.from(flipState, {
-      duration: 0.35,
-      ease: 'power2.out',
+      duration: FLOW_DOUBLE_DISMISS_DURATION,
+      ease: FLOW_DOUBLE_DISMISS_EASE,
       absolute: true,
     });
   }
 
-  g.set(slide, { filter: 'brightness(1)', boxShadow: 'none' });
   g.to(slide, {
+    scaleY: 0,
+    y: '-=12',
     opacity: 0,
-    x: '+=36',
-    y: '-=28',
-    filter: 'brightness(1.1) saturate(1.2) hue-rotate(36deg)',
-    boxShadow: '0 14px 40px rgba(70, 190, 120, 0.42), inset 0 0 48px rgba(95, 210, 145, 0.14)',
-    duration: FLOW_FADE_DISMISS_MS,
-    ease: 'power2.in',
+    duration: FLOW_DOUBLE_DISMISS_OUT_DURATION,
+    ease: FLOW_DOUBLE_DISMISS_EASE,
     onComplete: () => {
-      g.set(slide, { clearProps: 'zIndex,opacity,x,y,filter,boxShadow' });
+      g.set(slide, {
+        clearProps: 'zIndex,opacity,transform,transformOrigin,filter,boxShadow',
+      });
       article.remove();
       onDismiss(orderId);
     },
@@ -404,27 +420,58 @@ function attachFlowOrderSwipeDismiss(article, orderId, onDismiss) {
   );
 }
 
-function beanBadgeHtml(bean, totalBeans) {
-  if (bean.isGhost) return '';
-  const kind = bean.kind.toLowerCase();
-  const showNum = totalBeans > 1 || bean.shots !== DEFAULT_SHOTS;
-  const stateClass = bean.isGhost ? 'flow-bean--ghost' : 'flow-bean--elevated';
-  if (!showNum) {
-    return `<span class="flow-bean flow-bean--${kind} ${stateClass}" aria-hidden="true">${escapeHtml(
-      bean.label
-    )}</span>`;
+/**
+ * Maps non-default shot counts to display words (2 = default, suppressed).
+ * @param {number} n
+ * @returns {string|null}
+ */
+function shotCountToWord(n) {
+  if (n === null || n === undefined || n === DEFAULT_SHOTS) return null;
+  switch (n) {
+    case 1:
+      return 'Single';
+    case 3:
+      return 'Triple';
+    case 4:
+      return 'Quad';
+    default:
+      return `${n} shots`;
   }
-  return `<span class="flow-bean flow-bean--${kind} ${stateClass} flow-bean--split" aria-hidden="true"><span class="flow-bean__left">${escapeHtml(bean.label)}</span><span class="flow-bean__right">${escapeHtml(String(bean.shots))}</span></span>`;
+}
+
+/**
+ * Bracket notation token for bean type + non-default shot count (Flow KDS).
+ * @param {{ kind: string, label: string, shots: number, isGhost: boolean }[]} beans
+ */
+function beanTokenHtml(beans) {
+  const bean = beans.find((b) => !b.isGhost) ?? null;
+  const kindLower = bean ? bean.kind.toLowerCase() : null;
+  const beanCode = kindLower && kindLower !== 'ho' ? kindLower : null;
+  const shots = bean ? bean.shots : null;
+  const shotWord = shotCountToWord(shots);
+
+  if (!beanCode && !shotWord) return '';
+
+  const beanLabel =
+    beanCode && (BEAN_TOKEN_LABEL[beanCode] ?? beanCode.toUpperCase());
+  const dot = '\u00B7';
+  let innerText;
+  if (beanCode && shotWord) {
+    innerText = `${beanLabel} ${dot} ${shotWord}`;
+  } else if (beanCode) {
+    innerText = beanLabel;
+  } else {
+    innerText = shotWord;
+  }
+
+  const cls = beanCode ? `flow-bean-token--${beanCode}` : 'flow-bean-token--ho';
+  const innerEscaped = escapeHtml(innerText);
+  const ariaLabel = escapeHtml(`[${innerText}]`);
+  return `<span class="flow-bean-token ${cls}" aria-label="${ariaLabel}"><span aria-hidden="true"><span class="flow-bean-token__open">[</span><span class="flow-bean-token__body">${innerEscaped}</span><span class="flow-bean-token__close">]</span></span></span>`;
 }
 
 function renderFlowDrinkRow(model) {
-  const beansInner =
-    model.beans.length > 0
-      ? `<div class="flow-row__beans">${model.beans
-          .map((b) => beanBadgeHtml(b, model.beans.length))
-          .join('')}</div>`
-      : '';
-  const badgeSlotHtml = `<div class="flow-row__badge-slot">${beansInner}</div>`;
+  const beanToken = beanTokenHtml(model.beans);
 
   const sizeHtml = model.sizeChip
     ? `<div class="flow-row__size">${escapeHtml(model.sizeChip)}</div>`
@@ -493,7 +540,7 @@ function renderFlowDrinkRow(model) {
             ${sizeHtml}
           </div>
         </div>
-        ${badgeSlotHtml}
+        ${beanToken}
       </div>
       ${prepHtml}
       <div class="flow-row__detail">
@@ -504,11 +551,15 @@ function renderFlowDrinkRow(model) {
     </div>`;
 }
 
-/** Absolutely positioned so it does not change .flow-row height; dashes start after qty strip. */
-function renderFlowFoodLine() {
+/**
+ * Absolutely positioned so it does not change .flow-row height; dashes start after qty strip.
+ * @param {boolean} [foodOnlyOrder] — no drinks on ticket: label reads "FOOD ONLY" instead of "FOOD"
+ */
+function renderFlowFoodLine(foodOnlyOrder) {
+  const label = foodOnlyOrder ? 'FOOD ONLY' : 'FOOD';
   return `<div class="flow-row__food-line" role="presentation" aria-hidden="true">
       <span class="flow-row__food-line__rule flow-row__food-line__rule--start"></span>
-      <span class="flow-row__food-line__label">FOOD</span>
+      <span class="flow-row__food-line__label">${escapeHtml(label)}</span>
       <span class="flow-row__food-line__rule flow-row__food-line__rule--end"></span>
     </div>`;
 }
@@ -516,8 +567,9 @@ function renderFlowFoodLine() {
 /**
  * @param {object} model
  * @param {boolean} [isFirstFood]
+ * @param {boolean} [foodOnlyOrder]
  */
-function renderFlowFoodRow(model, isFirstFood) {
+function renderFlowFoodRow(model, isFirstFood, foodOnlyOrder) {
   const prepHtml = model.prepText
     ? `<div class="flow-row__prep-text">${escapeHtml(model.prepText)}</div>`
     : '';
@@ -528,7 +580,7 @@ function renderFlowFoodRow(model, isFirstFood) {
 
   const rowClass = `flow-row${isFirstFood ? ' flow-row--food-first' : ''}`;
 
-  const foodLineHtml = isFirstFood ? renderFlowFoodLine() : '';
+  const foodLineHtml = isFirstFood ? renderFlowFoodLine(Boolean(foodOnlyOrder)) : '';
 
   return `
     <div class="${rowClass}" data-kds-line="food">
@@ -540,7 +592,6 @@ function renderFlowFoodRow(model, isFirstFood) {
             <span class="flow-row__name">${escapeHtml(model.name)}</span>
           </div>
         </div>
-        <div class="flow-row__badge-slot" aria-hidden="true"></div>
       </div>
       <div class="flow-row__prep">${prepHtml}</div>
       <div class="flow-row__detail">${lineAllergyHtml}</div>
@@ -601,16 +652,16 @@ export function renderFlowOrder(order, onComplete) {
     )
     .join('');
 
-  const noDrinksLabel =
-    drinkItems.length === 0 && foodItems.length > 0
-      ? '<div class="flow-order__no-drinks">No drinks</div>'
-      : '';
+  const foodOnlyOrder = drinkItems.length === 0 && foodItems.length > 0;
+  const foodOnlySpacer = foodOnlyOrder
+    ? '<div class="flow-order__food-only-spacer" aria-hidden="true"></div>'
+    : '';
 
   const foodRows =
     foodItems.length > 0
       ? foodItems
           .map((it, index) =>
-            renderFlowFoodRow(buildFlowFoodModel(it, modifierSortOrder), index === 0)
+            renderFlowFoodRow(buildFlowFoodModel(it, modifierSortOrder), index === 0, foodOnlyOrder)
           )
           .join('')
       : '';
@@ -632,7 +683,7 @@ export function renderFlowOrder(order, onComplete) {
       </div>
       <div class="flow-order__body">
         ${drinksHtml}
-        ${noDrinksLabel}
+        ${foodOnlySpacer}
         ${foodRows}
         ${
           drinkItems.length === 0 && foodItems.length === 0
