@@ -140,6 +140,8 @@ socket.on('squareOrderClosed', (payload) => {
 document.getElementById('board-container').addEventListener('click', (event) => {
   const line = event.target.closest('[data-kds-line]');
   if (!line) return;
+  // Flow view: double-click dismisses an order; ignore 2nd+ click of a multi-click so lines don't toggle twice
+  if (line.closest('#flow-grid') && event.detail > 1) return;
   line.classList.toggle('completed');
 });
 
