@@ -7,6 +7,30 @@ const square = require('../lib/square');
 const { requireAuth } = require('../middleware/auth');
 const { persistOrderFromCheckout, normalizeAllergensInput } = require('../lib/orders-db');
 
+const CATALOG_CACHE_TTL_MS = 5 * 60 * 1000;
+let catalogItemsCache = { data: null, expiresAt: 0 };
+let modifierCategoriesCache = { data: null, expiresAt: 0 };
+
+async function getCachedCatalogItems() {
+  const now = Date.now();
+  if (catalogItemsCache.data && now < catalogItemsCache.expiresAt) {
+    return catalogItemsCache.data;
+  }
+  const items = await square.listCatalogItems();
+  catalogItemsCache = { data: items, expiresAt: now + CATALOG_CACHE_TTL_MS };
+  return items;
+}
+
+async function getCachedModifierCategories() {
+  const now = Date.now();
+  if (modifierCategoriesCache.data && now < modifierCategoriesCache.expiresAt) {
+    return modifierCategoriesCache.data;
+  }
+  const categories = await square.listModifierCategories();
+  modifierCategoriesCache = { data: categories, expiresAt: now + CATALOG_CACHE_TTL_MS };
+  return categories;
+}
+
 function squarePickupNoteFromAllergens(allergensArr) {
   const a = normalizeAllergensInput(allergensArr);
   if (a.length === 0) return '';
@@ -88,7 +112,7 @@ module.exports = function createCatalogRouter(io) {
 
   router.get('/api/catalog-items', async (req, res) => {
     try {
-      const items = await square.listCatalogItems();
+      const items = await getCachedCatalogItems();
       res.json({ ok: true, items });
     } catch (err) {
       if (err.code === 'CONFIG') {
@@ -101,7 +125,7 @@ module.exports = function createCatalogRouter(io) {
 
   router.get('/api/modifier-categories', async (req, res) => {
     try {
-      const categories = await square.listModifierCategories();
+      const categories = await getCachedModifierCategories();
       res.json({ ok: true, categories });
     } catch (err) {
       if (err.code === 'CONFIG') {

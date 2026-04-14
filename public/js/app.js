@@ -19,13 +19,13 @@ const drawerCloseBtn = document.getElementById('header-drawer-close');
 
 function closeHeaderDrawer() {
   if (!drawerOverlay || !menuBtn) return;
-  drawerOverlay.classList.add('hidden');
+  drawerOverlay.classList.remove('visible');
   menuBtn.setAttribute('aria-expanded', 'false');
 }
 
 function openHeaderDrawer() {
   if (!drawerOverlay || !menuBtn) return;
-  drawerOverlay.classList.remove('hidden');
+  drawerOverlay.classList.add('visible');
   menuBtn.setAttribute('aria-expanded', 'true');
 }
 
@@ -47,7 +47,7 @@ document.getElementById('view-toggle')?.addEventListener('click', (event) => {
 });
 
 menuBtn?.addEventListener('click', () => {
-  const isOpen = !drawerOverlay?.classList.contains('hidden');
+  const isOpen = drawerOverlay?.classList.contains('visible');
   if (isOpen) closeHeaderDrawer();
   else openHeaderDrawer();
 });

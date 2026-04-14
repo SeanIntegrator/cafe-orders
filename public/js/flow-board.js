@@ -519,7 +519,7 @@ function renderFlowDrinkRow(model) {
     : '<div class="flow-row__prep"></div>';
 
   const noteHtml = model.note
-    ? `<div class="flow-row__note">${escapeHtml(model.note)}</div>`
+    ? `<div class="flow-row__note${model.showNoteAsRaw ? ' flow-row__note--raw' : ''}">${escapeHtml(model.note)}</div>`
     : '';
 
   const allergyHtml = model.showAllergyBar
@@ -571,7 +571,7 @@ function renderFlowFoodLine(foodOnlyOrder) {
  */
 function renderFlowFoodRow(model, isFirstFood, foodOnlyOrder) {
   const prepHtml = model.prepText
-    ? `<div class="flow-row__prep-text">${escapeHtml(model.prepText)}</div>`
+    ? `<div class="flow-row__prep-text${model.showPrepAsRaw ? ' flow-row__prep-text--raw' : ''}">${escapeHtml(model.prepText)}</div>`
     : '';
 
   const lineAllergyHtml = model.lineAllergyNoteEscaped

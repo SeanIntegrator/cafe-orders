@@ -7,8 +7,16 @@
   justify-content: center;
   z-index: 200;
   padding: 20px;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
 }
-.modal-overlay.hidden { display: none; }
+.modal-overlay.visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
 
 .order-modal {
   background: var(--surface);

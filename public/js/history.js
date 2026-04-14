@@ -12,7 +12,7 @@ const overlay = document.getElementById('history-modal-overlay');
 const closeBtn = document.getElementById('history-modal-close');
 const openBtn = document.getElementById('history-recall-btn');
 const listEl = document.getElementById('history-modal-list');
-const periodButtons = document.querySelectorAll('[data-history-period]');
+const periodSelect = document.getElementById('history-period-select');
 const sourceButtons = document.querySelectorAll('[data-history-source]');
 
 let currentPeriod = 'today';
@@ -56,10 +56,24 @@ function modifierLabel(m) {
   return m.name || m.id || '';
 }
 
-function renderModifiers(mods) {
-  if (!Array.isArray(mods) || mods.length === 0) return '';
-  const parts = mods.map(modifierLabel).filter(Boolean);
-  return parts.length ? parts.join(', ') : '';
+/** Modifier name list for Flow-style pills (same order as main KDS line). */
+function modifierPartsFromDb(mods) {
+  if (!Array.isArray(mods) || mods.length === 0) return [];
+  return mods.map(modifierLabel).filter(Boolean);
+}
+
+/** Square line_item.modifiers → pill labels */
+function modifierPartsFromSquare(it) {
+  if (!Array.isArray(it.modifiers) || it.modifiers.length === 0) return [];
+  return it.modifiers.map((m) => (m && m.name ? String(m.name) : '')).filter(Boolean);
+}
+
+function modifiersPrepHtml(parts) {
+  if (!parts.length) return '';
+  const pills = parts
+    .map((p) => `<span class="flow-chip-pill">${escapeHtml(p)}</span>`)
+    .join('');
+  return `<div class="history-line-prep" role="presentation">${pills}</div>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -69,7 +83,7 @@ function renderModifiers(mods) {
 function recallButtonHtml(squareId) {
   if (!squareId) return '';
   const esc = escapeHtml(squareId);
-  return `<button type="button" class="history-recall-btn" data-recall-square-id="${esc}" aria-label="Recall order to board">Recall</button>`;
+  return `<button type="button" class="history-recall-btn history-recall-btn--primary" data-recall-square-id="${esc}" aria-label="Recall order to board">Recall</button>`;
 }
 
 function showRecallForDb(order) {
@@ -98,12 +112,13 @@ async function recallOrderToBoard(squareOrderId, triggerBtn) {
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.ok) {
       showToast(data.error || 'Could not recall order', 'error');
+      if (triggerBtn) triggerBtn.disabled = false;
       return;
     }
     addOrUpdateOrder(data.order, { createdAtMs: data.kdsRecallResetAtMs });
+    showToast('Order recalled back to board', 'success');
   } catch (e) {
     showToast('Network error', 'error');
-  } finally {
     if (triggerBtn) triggerBtn.disabled = false;
   }
 }
@@ -126,6 +141,7 @@ function dbStatusLabel(status) {
 
 function dbStatusBadgeClass(status) {
   const s = String(status || '').toLowerCase();
+  if (s === 'cancelled') return 'status-cancelled';
   if (s === 'ready') return 'takeaway';
   if (s === 'completed') return 'eat-in';
   if (s === 'confirmed') return 'paid';
@@ -134,12 +150,16 @@ function dbStatusBadgeClass(status) {
 
 function dbLineItemRow(it) {
   const emoji = it.item_emoji ? `<span class="history-line-emoji" aria-hidden="true">${escapeHtml(it.item_emoji)}</span>` : '';
-  const mods = renderModifiers(it.modifiers);
-  const modHtml = mods ? `<span class="history-line-mods">${escapeHtml(mods)}</span>` : '';
+  const parts = modifierPartsFromDb(it.modifiers);
+  const modHtml = modifiersPrepHtml(parts);
   return `<li class="history-line-item">
-    ${emoji}
-    <span class="history-line-main"><span class="history-line-qty">${it.quantity}×</span> ${escapeHtml(it.item_name || 'Item')}</span>
-    ${modHtml ? `<span class="history-line-mods-wrap">${modHtml}</span>` : ''}
+    <div class="history-line-top">
+      ${emoji}
+      <div class="history-line-text-row">
+        <span class="history-line-main"><span class="history-line-qty">${it.quantity}×</span> ${escapeHtml(it.item_name || 'Item')}</span>
+        ${modHtml || ''}
+      </div>
+    </div>
   </li>`;
 }
 
@@ -150,7 +170,14 @@ function renderDbOrder(order) {
     ? `<div class="history-notes"><span class="history-notes-label">Note</span> ${escapeHtml(order.notes)}</div>`
     : '';
   const channel = dbOrderChannelLabel(order.order_source);
-  const stLabel = dbStatusLabel(order.status);
+  const sq = order.square_order_id;
+  const onBoard = Boolean(sq && orders[sq]);
+  let stLabel = dbStatusLabel(order.status);
+  let badgeCls = dbStatusBadgeClass(order.status);
+  if (onBoard) {
+    stLabel = 'Tendered';
+    badgeCls = 'tendered';
+  }
   const recallHtml = showRecallForDb(order) ? recallButtonHtml(order.square_order_id) : '';
 
   return `
@@ -162,8 +189,8 @@ function renderDbOrder(order) {
         </div>
         <div class="history-order-right">
           <div class="history-order-badges">
-            <span class="badge ${dbStatusBadgeClass(order.status)}">${escapeHtml(stLabel)}</span>
             ${recallHtml}
+            <span class="badge ${badgeCls}">${escapeHtml(stLabel)}</span>
           </div>
           <span class="history-order-total">${formatMoney(order.total_amount)}</span>
         </div>
@@ -210,7 +237,7 @@ function squareStateLabel(state) {
 function squareStateBadgeClass(state) {
   if (state === 'OPEN') return 'paid';
   if (state === 'COMPLETED') return 'eat-in';
-  if (state === 'CANCELED') return 'unpaid';
+  if (state === 'CANCELED') return 'status-cancelled';
   return 'takeaway';
 }
 
@@ -237,27 +264,22 @@ function squareCustomerName(order) {
   return null;
 }
 
-function squareFulfillmentLabel(order) {
-  const ff = order.fulfillments;
-  if (!Array.isArray(ff) || ff.length === 0) return 'No fulfillment (POS)';
-  const type = ff[0]?.type || '';
-  if (type === 'PICKUP') return 'Pickup';
-  if (type === 'DELIVERY') return 'Delivery';
-  if (type === 'SHIPMENT') return 'Shipment';
-  return type || 'Fulfillment';
-}
-
 function squareLineItemRow(it) {
   const qty = it.quantity || '1';
   const name = it.name || it.catalog_object_id || 'Item';
-  const mods = Array.isArray(it.modifiers)
-    ? it.modifiers.map((m) => m.name || '').filter(Boolean).join(', ')
+  const parts = modifierPartsFromSquare(it);
+  const modHtml = modifiersPrepHtml(parts);
+  const note = it.note
+    ? `<div class="history-line-mods-wrap--note"><span class="history-line-note-text">${escapeHtml(it.note)}</span></div>`
     : '';
-  const modHtml = mods ? `<span class="history-line-mods-wrap"><span class="history-line-mods">${escapeHtml(mods)}</span></span>` : '';
-  const note = it.note ? `<span class="history-line-mods-wrap"><span class="history-line-mods history-line-note">${escapeHtml(it.note)}</span></span>` : '';
   return `<li class="history-line-item">
-    <span class="history-line-main"><span class="history-line-qty">${escapeHtml(qty)}×</span> ${escapeHtml(name)}</span>
-    ${modHtml}${note}
+    <div class="history-line-top">
+      <div class="history-line-text-row">
+        <span class="history-line-main"><span class="history-line-qty">${escapeHtml(qty)}×</span> ${escapeHtml(name)}</span>
+        ${modHtml || ''}
+      </div>
+    </div>
+    ${note}
   </li>`;
 }
 
@@ -266,10 +288,14 @@ function renderSquareOrder(order) {
   const lines = items.map(squareLineItemRow).join('');
   const customerName = squareCustomerName(order) || 'Walk-in';
   const sourceLbl = squareSourceLabel(order);
-  const fulfillLbl = squareFulfillmentLabel(order);
   const total = order.total_money?.amount ?? order.net_amounts?.total_money?.amount;
-  const stateLabel = squareStateLabel(order.state);
-  const badgeClass = squareStateBadgeClass(order.state);
+  const onBoard = Boolean(order.id && orders[order.id]);
+  let stateLabel = squareStateLabel(order.state);
+  let badgeClass = squareStateBadgeClass(order.state);
+  if (onBoard) {
+    stateLabel = 'Tendered';
+    badgeClass = 'tendered';
+  }
   const orderId = order.id ? `<span class="history-square-id" title="Square order ID">#${escapeHtml(order.id.slice(-6))}</span>` : '';
   const recallHtml = showRecallForSquare(order) ? recallButtonHtml(order.id) : '';
 
@@ -278,12 +304,12 @@ function renderSquareOrder(order) {
       <div class="history-order-top">
         <div class="history-order-meta">
           <div class="history-order-name">${escapeHtml(customerName)} ${orderId}</div>
-          <div class="history-order-sub">${formatWhen(order.created_at)} · ${escapeHtml(sourceLbl)} · ${escapeHtml(fulfillLbl)}</div>
+          <div class="history-order-sub">${formatWhen(order.created_at)} · ${escapeHtml(sourceLbl)}</div>
         </div>
         <div class="history-order-right">
           <div class="history-order-badges">
-            <span class="badge ${badgeClass}">${escapeHtml(stateLabel)}</span>
             ${recallHtml}
+            <span class="badge ${badgeClass}">${escapeHtml(stateLabel)}</span>
           </div>
           ${total != null ? `<span class="history-order-total">${formatMoney(total)}</span>` : ''}
         </div>
@@ -308,7 +334,10 @@ async function fetchSquareOrders(period, cursor) {
 // ---------------------------------------------------------------------------
 
 function setLoading() {
-  listEl.innerHTML = '<div class="history-loading">Loading…</div>';
+  listEl.innerHTML = `<div class="history-loading" role="status" aria-live="polite">
+    <span class="history-loading-spinner" aria-hidden="true"></span>
+    <span class="history-loading-text">Loading orders…</span>
+  </div>`;
 }
 
 function setError(msg) {
@@ -387,19 +416,29 @@ async function loadMoreSquare() {
 // Modal open/close
 // ---------------------------------------------------------------------------
 
+function syncPeriodSelect() {
+  if (periodSelect) periodSelect.value = currentPeriod;
+}
+
 function openModal() {
-  overlay.classList.remove('hidden');
+  overlay.classList.add('visible');
+  syncPeriodSelect();
   loadAndRender();
 }
 
 function closeModal() {
-  overlay.classList.add('hidden');
+  overlay.classList.remove('visible');
 }
 
 openBtn?.addEventListener('click', openModal);
 closeBtn?.addEventListener('click', closeModal);
 overlay?.addEventListener('click', (e) => {
   if (e.target === overlay) closeModal();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || !overlay?.classList.contains('visible')) return;
+  closeModal();
 });
 
 // ---------------------------------------------------------------------------
@@ -417,22 +456,17 @@ sourceButtons.forEach((btn) => {
 });
 
 // ---------------------------------------------------------------------------
-// Period tabs
+// Period dropdown
 // ---------------------------------------------------------------------------
 
-periodButtons.forEach((btn) => {
-  btn.addEventListener('click', () => {
-    const p = btn.getAttribute('data-history-period');
-    if (!p) return;
-    currentPeriod = p;
-    periodButtons.forEach((b) => b.classList.toggle('active', b === btn));
-    loadAndRender();
-  });
+periodSelect?.addEventListener('change', () => {
+  const p = periodSelect.value;
+  if (!p) return;
+  currentPeriod = p;
+  loadAndRender();
 });
 
-periodButtons.forEach((btn) => {
-  if (btn.getAttribute('data-history-period') === 'today') btn.classList.add('active');
-});
+syncPeriodSelect();
 
 listEl?.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-recall-square-id]');

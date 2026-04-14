@@ -26,6 +26,7 @@ import {
   syntheticMilkSnippetsFromNote,
   flowSizeLabelFromNote,
   decafSuggestedByLineNote,
+  getMergedLineNote,
 } from './kds-modifier-config.js';
 import {
   buildFlowMilkScanText,
@@ -34,6 +35,12 @@ import {
 } from './kds-milk-test-parser.js';
 
 const DEFAULT_SHOTS = 2;
+
+/**
+ * When false, Flow shows merged customer notes as raw italic text and skips chip/note heuristics.
+ * Set to true after launch once parsing is validated.
+ */
+export const SMART_NOTE_PARSING_ENABLED = false;
 
 const MILK_KEY_DISPLAY = {
   whole: 'Whole',
@@ -403,6 +410,67 @@ export function sortDrinkItemsForFlow(drinkItems, modifierSortOrder, order) {
  * Flow view: one drink row model (3 columns).
  */
 export function buildFlowDrinkModel(item, modifierSortOrder, order, showAllergyBar, allergyLabelEscaped) {
+  if (!SMART_NOTE_PARSING_ENABLED) {
+    const buckets = extractFlowDrinkPrepBuckets(item, modifierSortOrder, order);
+    const noteRaw = getMergedLineNote(item);
+    const primaryBean = beanBadgeFromItem(item, order);
+    const shotInfo = extractShotInfo(item);
+    const showBeans = isCoffeeBeanItem(item);
+    /** @type {{ kind: string, label: string, shots: number, isGhost: boolean }[]} */
+    let beans = [];
+    const prepBeans = item.kds_prep?.version === 1 && Array.isArray(item.kds_prep.beans) ? item.kds_prep.beans : null;
+    if (showBeans) {
+      if (prepBeans && prepBeans.length > 0) {
+        beans = prepBeans;
+      } else if (shotInfo.splitBeans) {
+        const { decaf, house } = shotInfo.splitBeans;
+        beans = [
+          { kind: 'Dc', label: 'Dc', shots: decaf, isGhost: false },
+          { kind: 'Ho', label: 'Ho', shots: house, isGhost: false },
+        ];
+      } else {
+        const shots = shotInfo.totalShots;
+        const isGhost =
+          primaryBean.kind === 'Ho' && shots === DEFAULT_SHOTS && !shotInfo.isNonStandard;
+        beans = [
+          {
+            kind: primaryBean.kind,
+            label: primaryBean.label,
+            shots,
+            isGhost,
+          },
+        ];
+      }
+    }
+    const sizeFromVariation =
+      item.variation_name && String(item.variation_name).trim() && item.variation_name !== 'Regular'
+        ? String(item.variation_name).trim()
+        : null;
+    const sizeRaw = sizeFromVariation ?? buckets.sizeFromModifier;
+    const sizeChip = sizeRaw ? String(sizeRaw).trim().toUpperCase() : null;
+
+    return {
+      milkKey: buckets.milkKey,
+      milkChipLabel: '',
+      milkChipSegments: [],
+      milkChipWidthPx: 50,
+      showMilkChip: false,
+      syrupChips: [],
+      toppingChips: [],
+      extraSquareChips: [],
+      extraRoundChips: [],
+      beans,
+      name: item.name || 'Item',
+      sizeChip,
+      qty: item.quantity || 1,
+      note: noteRaw,
+      lineAllergyNoteEscaped: '',
+      showAllergyBar,
+      allergyLabelEscaped,
+      showNoteAsRaw: true,
+    };
+  }
+
   const buckets = extractFlowDrinkPrepBuckets(item, modifierSortOrder, order);
   const {
     names,
@@ -525,6 +593,7 @@ export function buildFlowDrinkModel(item, modifierSortOrder, order, showAllergyB
     lineAllergyNoteEscaped,
     showAllergyBar,
     allergyLabelEscaped,
+    showNoteAsRaw: false,
   };
 }
 
@@ -532,6 +601,22 @@ export function buildFlowDrinkModel(item, modifierSortOrder, order, showAllergyB
  * Flow view: one food row model.
  */
 export function buildFlowFoodModel(item, modifierSortOrder) {
+  if (!SMART_NOTE_PARSING_ENABLED) {
+    const raw = getMergedLineNote(item);
+    const names = getModifiers(item, modifierSortOrder)
+      .filter((n) => !isRegularSizeModifierLabel(n))
+      .filter((n) => !normalizeServiceModifierOptionName(n));
+    const modText = names.length ? names.join(', ') : '';
+    const prepText = [raw, modText].filter(Boolean).join(raw && modText ? ' · ' : '');
+    return {
+      name: item.name || 'Item',
+      qty: item.quantity || 1,
+      prepText,
+      lineAllergyNoteEscaped: '',
+      showPrepAsRaw: true,
+    };
+  }
+
   const noteRaw =
     item.customer_note != null && String(item.customer_note).trim()
       ? String(item.customer_note).trim()
@@ -554,5 +639,6 @@ export function buildFlowFoodModel(item, modifierSortOrder) {
     qty: item.quantity || 1,
     prepText,
     lineAllergyNoteEscaped,
+    showPrepAsRaw: false,
   };
 }

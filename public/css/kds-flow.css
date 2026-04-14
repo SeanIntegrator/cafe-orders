@@ -827,6 +827,11 @@ body.kds-flow-active {
   word-break: break-word;
 }
 
+/* Raw merged note when smart parsing is off (see SMART_NOTE_PARSING_ENABLED) */
+.flow-row__prep-text--raw {
+  color: var(--flow-text);
+}
+
 .flow-row__detail {
   display: flex;
   flex-direction: column;
@@ -879,6 +884,11 @@ body.kds-flow-active {
   overflow-wrap: break-word;
   word-break: break-word;
   line-height: 1.35;
+}
+
+.flow-row__note--raw {
+  font-weight: 400;
+  color: var(--flow-muted);
 }
 
 .flow-row__allergy {
@@ -937,6 +947,7 @@ body.kds-flow-active {
 .flow-row.completed .flow-chip-pill,
 .flow-row.completed .flow-chip-square,
 .flow-row.completed .flow-row__note,
+.flow-row.completed .flow-row__note--raw,
 .flow-row.completed .flow-row__allergy,
 .flow-row.completed .flow-row__prep-text,
 .flow-row.completed .flow-row__size {

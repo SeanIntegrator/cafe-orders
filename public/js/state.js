@@ -14,11 +14,20 @@ const VIEW_MODE_STORAGE_KEY = 'kds-view-mode';
 function readStoredViewMode() {
   try {
     const v = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
-    if (v === 'flow' || v === 'cards') return v;
+    if (v === 'flow') return 'flow';
+    /** Soft launch: Flow-only; migrate stored Cards preference. */
+    if (v === 'cards') {
+      try {
+        localStorage.setItem(VIEW_MODE_STORAGE_KEY, 'flow');
+      } catch (_) {
+        /* ignore */
+      }
+      return 'flow';
+    }
   } catch (_) {
     /* ignore */
   }
-  return 'cards';
+  return 'flow';
 }
 
 /** @type {'cards' | 'flow'} */

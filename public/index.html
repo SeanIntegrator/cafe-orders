@@ -47,42 +47,44 @@
   <div class="flow-board-grid hidden" id="flow-grid" role="list" aria-label="Active orders flow view"></div>
 </div>
 
-<div class="modal-overlay hidden header-drawer-overlay" id="header-drawer-overlay">
+<div class="modal-overlay header-drawer-overlay" id="header-drawer-overlay">
   <aside class="header-drawer" role="dialog" aria-modal="true" aria-labelledby="header-drawer-title">
     <div class="header-drawer__header">
       <h2 id="header-drawer-title">Menu</h2>
       <button type="button" class="order-modal-close" id="header-drawer-close" aria-label="Close menu">&times;</button>
     </div>
     <div class="header-drawer__body">
-      <div class="header-drawer__view-row">
+      <div class="header-drawer__view-row hidden" aria-hidden="true">
         <span class="header-drawer__field-label" id="view-type-label">View type</span>
-        <div class="view-toggle view-toggle--drawer" id="view-toggle" role="group" aria-labelledby="view-type-label">
-          <button type="button" class="view-toggle__btn active" data-view="cards">Cards</button>
-          <button type="button" class="view-toggle__btn" data-view="flow">Flow</button>
+        <div class="view-toggle view-toggle--drawer hidden" id="view-toggle" role="group" aria-labelledby="view-type-label">
+          <button type="button" class="view-toggle__btn" data-view="cards">Cards</button>
+          <button type="button" class="view-toggle__btn active" data-view="flow">Flow</button>
         </div>
       </div>
-      <button type="button" class="demo-btn demo-btn--dismiss-old header-drawer__btn" id="dismiss-old-orders-btn" title="Mark done every order whose timer is over 30:00" aria-label="Dismiss all orders waiting over 30 minutes">Dismiss old (30m+)</button>
-      <button type="button" class="demo-btn header-drawer__btn" id="history-recall-btn" title="Recent orders from the app (saved here for reference)">Recent orders</button>
+      <button type="button" class="demo-btn demo-btn--primary demo-btn--dismiss-old header-drawer__btn" id="dismiss-old-orders-btn" title="Mark done every order whose timer is over 30:00" aria-label="Dismiss all orders waiting over 30 minutes">Dismiss old (30m+)</button>
+      <button type="button" class="demo-btn demo-btn--primary header-drawer__btn" id="history-recall-btn" title="Recent orders from the app (saved here for reference)">Recent orders</button>
     </div>
   </aside>
 </div>
 
-<div class="modal-overlay hidden" id="history-modal-overlay">
+<div class="modal-overlay" id="history-modal-overlay">
   <div class="history-modal" id="history-modal" role="dialog" aria-labelledby="history-modal-title" aria-modal="true">
     <div class="history-modal-header">
       <h2 id="history-modal-title">Recent orders</h2>
       <button type="button" class="order-modal-close" id="history-modal-close" aria-label="Close">&times;</button>
     </div>
-    <div class="history-source-toggle">
-      <button type="button" class="active" data-history-source="db">App orders</button>
-      <button type="button" data-history-source="square">Square (all)</button>
-    </div>
-    <div class="history-period-tabs">
-      <button type="button" data-history-period="hour">Last hour</button>
-      <button type="button" data-history-period="today">Today</button>
-      <button type="button" data-history-period="week">This week</button>
-      <button type="button" data-history-period="30d">Last 30 days</button>
-      <button type="button" data-history-period="all">All time</button>
+    <div class="history-modal-toolbar">
+      <div class="history-source-toggle" role="group" aria-label="Order source">
+        <button type="button" class="active" data-history-source="db">App orders</button>
+        <button type="button" data-history-source="square">Square (all)</button>
+      </div>
+      <select id="history-period-select" class="history-period-select" aria-label="Time range">
+        <option value="hour">Last hour</option>
+        <option value="today" selected>Today</option>
+        <option value="week">This week</option>
+        <option value="30d">Last 30 days</option>
+        <option value="all">All time</option>
+      </select>
     </div>
     <div class="history-modal-body" id="history-modal-list"></div>
   </div>

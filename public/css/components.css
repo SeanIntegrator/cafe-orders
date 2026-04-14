@@ -113,13 +113,19 @@
 }
 
 .header-drawer {
-  width: min(320px, 88vw);
+  width: min(380px, 92vw);
   height: 100%;
   background: var(--surface);
   border-left: 1px solid var(--border);
   box-shadow: -16px 0 44px rgba(0, 0, 0, 0.4);
   display: flex;
   flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.25s ease;
+}
+
+.header-drawer-overlay.visible .header-drawer {
+  transform: translateX(0);
 }
 
 .header-drawer__header {
@@ -130,18 +136,26 @@
   border-bottom: 1px solid var(--border);
 }
 
+.header-drawer__header .order-modal-close {
+  font-size: 28px;
+  min-width: 44px;
+  min-height: 44px;
+}
+
 .header-drawer__header h2 {
-  font-size: 0.95rem;
+  font-size: 22px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted);
 }
 
 .header-drawer__body {
-  padding: 14px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
+  font-size: 22px;
+  line-height: 1.35;
 }
 
 .header-drawer__view-row {
@@ -152,7 +166,7 @@
 }
 
 .header-drawer__field-label {
-  font-size: 0.72rem;
+  font-size: 22px;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -165,13 +179,15 @@
 }
 
 .header-drawer .view-toggle--drawer .view-toggle__btn {
-  width: 80px;
-  min-width: 80px;
-  max-width: 80px;
-  flex: 0 0 80px;
+  width: 96px;
+  min-width: 96px;
+  max-width: 96px;
+  flex: 0 0 96px;
   box-sizing: border-box;
   padding-left: 0;
   padding-right: 0;
+  font-size: 22px;
+  min-height: 48px;
   background: var(--surface-alt);
   color: var(--text);
 }
@@ -192,31 +208,39 @@
   color: var(--text);
 }
 
-/* Primary (filled) actions in drawer — not ghost/outline */
+/* Primary (filled) actions in drawer — full-width CTAs */
 .header-drawer__body .header-drawer__btn {
   width: 100%;
-  background: var(--surface-alt);
-  color: var(--text);
-  border: 1px solid var(--border);
+  font-size: 22px;
+  min-height: 52px;
+  padding: 12px 18px;
   font-weight: 600;
+  border-radius: 10px;
 }
 
-.header-drawer__body .header-drawer__btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: var(--muted);
-  color: var(--text);
+.header-drawer__body .demo-btn--primary.header-drawer__btn:not(.demo-btn--dismiss-old) {
+  color: var(--bg);
+  background: var(--paid);
+  border: 2px solid transparent;
 }
 
-.header-drawer__body .demo-btn--dismiss-old.header-drawer__btn {
-  border-color: var(--border);
-  color: var(--text);
-  background: var(--surface-alt);
+.header-drawer__body .demo-btn--primary.header-drawer__btn:not(.demo-btn--dismiss-old):hover {
+  color: var(--bg);
+  background: #8f966f;
+  border-color: transparent;
 }
 
-.header-drawer__body .demo-btn--dismiss-old.header-drawer__btn:hover {
-  background: rgba(180, 120, 60, 0.18);
-  border-color: rgba(200, 140, 80, 0.55);
-  color: var(--text);
+/* Dismiss old: primary filled amber (distinct from sage Recent orders) */
+.header-drawer__body .demo-btn--primary.demo-btn--dismiss-old.header-drawer__btn {
+  color: #faf3d4;
+  background: #5a4525;
+  border: 2px solid rgba(200, 140, 80, 0.55);
+}
+
+.header-drawer__body .demo-btn--primary.demo-btn--dismiss-old.header-drawer__btn:hover {
+  color: #fff8e8;
+  background: #6d5632;
+  border-color: rgba(220, 160, 90, 0.65);
 }
 .demo-btn:hover {
   color: var(--text);
@@ -281,7 +305,8 @@
   border-radius: 8px;
   font-size: 0.85rem;
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  z-index: 100;
+  /* Above .modal-overlay (200) and .header-drawer-overlay (240) */
+  z-index: 400;
   animation: fadeIn 0.2s ease;
 }
 .demo-toast.success { background: var(--eat-in); color: var(--bg); }
@@ -304,6 +329,13 @@
 .badge.takeaway { background: rgba(157, 120, 91, 0.08); color: var(--takeaway); border: 1px solid rgba(157,120,91,0.25); }
 .badge.paid { background: rgba(164, 172, 131, 0.12); color: var(--paid); border: 1px solid rgba(164,172,131,0.3); }
 .badge.unpaid { background: rgba(157, 120, 91, 0.12); color: var(--unpaid); border: 1px solid rgba(157,120,91,0.3); }
+.badge.status-cancelled {
+  background: rgba(120, 60, 55, 0.2);
+  color: #e8a8a4;
+  border: 1px solid rgba(220, 100, 95, 0.45);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
 
 /* Milk chip colour coding */
 .milk-chip {

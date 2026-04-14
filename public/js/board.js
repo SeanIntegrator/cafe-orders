@@ -204,11 +204,13 @@ export function addOrUpdateOrder(order, options = {}) {
   const isDemo = String(order.id || '').startsWith('demo-');
   if (!isDemo && !shouldShowOrderOnKds(order)) return;
   const prev = orders[order.id];
+  const existingCardEl =
+    viewMode === 'cards' ? document.getElementById(`card-${order.id}`) : null;
   const existingFlowEl =
     viewMode === 'flow' ? document.getElementById(`flow-order-${order.id}`) : null;
   if (
     prev &&
-    existingFlowEl &&
+    (existingCardEl || existingFlowEl) &&
     orderPayloadUnchangedForDom(prev.order, order) &&
     !options.resetTimerFromSquare &&
     typeof options.createdAtMs !== 'number'

@@ -10,8 +10,8 @@ const { overlayWebAppDbOnSquareOrder } = require('../lib/kds-merge');
 const { normalizeKdsOrder } = require('../lib/kds-normalize');
 const { kdsShouldDisplayOrder } = require('../lib/kds-visibility');
 
-/** Match RecallContext: barista-facing history (excludes unpaid pending). */
-const KDS_HISTORY_STATUSES = ['confirmed', 'ready', 'completed'];
+/** Match RecallContext: barista-facing history (excludes unpaid pending). Includes cancelled for audit. */
+const KDS_HISTORY_STATUSES = ['confirmed', 'ready', 'completed', 'cancelled'];
 
 /**
  * @param {import('socket.io').Server | null | undefined} io
