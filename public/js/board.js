@@ -7,6 +7,7 @@ import {
   updateFlowTimers,
   rerenderFlowBoard,
   animateOutFlowOrder,
+  animateOutFlowOrdersBatch,
 } from './flow-board.js';
 import {
   isEatInOrder,
@@ -346,6 +347,30 @@ export function dismissOrder(id) {
     el.remove();
     applyOrderDismissState(id);
   }, 300);
+}
+
+/**
+ * Dismiss multiple orders with a shared exit animation (flow: parallel swipe; cards: shared 300ms fade).
+ * @param {string[]} ids
+ * @returns {Promise<void>}
+ */
+export function dismissOrdersVisualBatch(ids) {
+  if (ids.length === 0) return Promise.resolve();
+  if (viewMode === 'flow') {
+    return animateOutFlowOrdersBatch(ids);
+  }
+  for (const id of ids) {
+    document.getElementById(`card-${id}`)?.classList.add('removing');
+  }
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      for (const id of ids) {
+        document.getElementById(`card-${id}`)?.remove();
+        applyOrderDismissState(id);
+      }
+      resolve();
+    }, 300);
+  });
 }
 
 export function updateCount() {

@@ -1,4 +1,5 @@
 :root {
+  --drawer-font-size: 19px;
   --bg: #1a1917;
   --surface: #22201d;
   --surface-alt: #2d2924;
@@ -7,7 +8,11 @@
   --muted: #b4aa96;
   --eat-in: #a4ac83;      /* Sage Matcha */
   --takeaway: #9d785b;    /* Roasted Clay */
-  --paid: #a4ac83;        /* Sage Matcha */
+  --paid: #c9b269;        /* Sage Matcha */
+  --paid-hover: #8f966f;  /* Darker sage for filled control hovers */
+  --sage-ring: rgba(239, 212, 122, 0.42);
+  --sage-ring-strong: rgba(239, 212, 122, 0.55);
+  --sage-ring-soft: rgba(239, 212, 122, 0.35);
   --unpaid: #9d785b;      /* Roasted Clay */
   --accent: #9d785b;      /* Roasted Clay */
 }

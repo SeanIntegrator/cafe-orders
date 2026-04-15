@@ -80,6 +80,9 @@ body.kds-flow-active {
   --flow-allergy: #c0392b;
   --flow-chip-pill-bg: rgba(255, 255, 255, 0.13);
   --flow-chip-pill-fg: #ddd9d0;
+  --flow-header-bg: rgb(61 51 59);
+  --flow-header-bg-sitin: #2b2c3a;
+  --flow-header-service: var(--flow-chip-pill-fg);
   /* Start of dashed line from row left edge — after qty strip */
   --flow-food-line-inset: 58px;
 
@@ -112,7 +115,7 @@ body.kds-flow-active {
   gap: 14px;
   padding: 12px 17px;
   border-bottom: 1px solid rgba(164, 172, 131, 0.14);
-  background: rgb(59 56 52);
+  background: var(--flow-header-bg);
   cursor: default;
   user-select: none;
   flex-wrap: wrap;
@@ -120,7 +123,7 @@ body.kds-flow-active {
 }
 
 .flow-order__header--sitin {
-  background: #0c121678;
+  background: var(--flow-header-bg-sitin);
 }
 
 .flow-order__header-left {
@@ -139,7 +142,7 @@ body.kds-flow-active {
 }
 
 .flow-order__service {
-  color: var(--flow-text);
+  color: var(--flow-header-service);
   font-size: clamp(17px, 1.8vw, 22px);
   font-weight: 700;
   letter-spacing: 0.07em;

@@ -2,7 +2,7 @@
 
 import { orders, modifierSortOrder, serviceModifierOptionIds } from './state.js';
 import { showToast } from './ui.js';
-import { dismissOrder, addOrUpdateOrder } from './board.js';
+import { dismissOrder, addOrUpdateOrder, dismissOrdersVisualBatch } from './board.js';
 
 /** Same idea as board wait timers (`createdAt`); not the green/amber/red thresholds in board.js. */
 const DISMISS_OLD_WAIT_MS = 30 * 60 * 1000;
@@ -42,15 +42,9 @@ export async function loadLiveOrders(addOrUpdateOrder) {
   return false;
 }
 
-export async function handleDone(id) {
-  if (id.startsWith('demo-')) {
-    dismissOrder(id);
-    return;
-  }
+async function postOrderComplete(id, order, createdAt) {
+  if (id.startsWith('demo-')) return;
 
-  const record = orders[id];
-  const order = record?.order;
-  const createdAt = record?.createdAt;
   const payload = {};
   if (order) {
     payload.version = order.version;
@@ -59,9 +53,6 @@ export async function handleDone(id) {
     payload.tenders = order.tenders;
     if (order.total_money) payload.total_money = order.total_money;
   }
-
-  /** Optimistic: remove from the board immediately; restore if the request fails. */
-  dismissOrder(id);
 
   try {
     const res = await fetch(`/api/orders/${encodeURIComponent(id)}/complete`, {
@@ -88,6 +79,22 @@ export async function handleDone(id) {
   }
 }
 
+export async function handleDone(id) {
+  if (id.startsWith('demo-')) {
+    dismissOrder(id);
+    return;
+  }
+
+  const record = orders[id];
+  const order = record?.order;
+  const createdAt = record?.createdAt;
+
+  /** Optimistic: remove from the board immediately; restore if the request fails. */
+  dismissOrder(id);
+
+  await postOrderComplete(id, order, createdAt);
+}
+
 /**
  * Call out / complete every order whose on-board wait time is at least 30 minutes
  * (same basis as the red timer on each card).
@@ -105,10 +112,17 @@ export async function dismissOrdersPastWaitThreshold() {
   if (!window.confirm(`Dismiss ${ids.length} order(s) waiting over 30 minutes?`)) {
     return;
   }
-  for (const id of ids) {
-    if (!orders[id]) continue;
-    await handleDone(id);
-  }
+
+  const snapshots = ids
+    .filter((id) => orders[id])
+    .map((id) => {
+      const r = orders[id];
+      return { id, order: r.order, createdAt: r.createdAt };
+    });
+  if (snapshots.length === 0) return;
+
+  await dismissOrdersVisualBatch(snapshots.map((s) => s.id));
+  await Promise.all(snapshots.map((s) => postOrderComplete(s.id, s.order, s.createdAt)));
 }
 
 export async function recallLatestDismissedOrder() {

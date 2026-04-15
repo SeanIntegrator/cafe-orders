@@ -143,7 +143,7 @@
 }
 
 .header-drawer__header h2 {
-  font-size: 22px;
+  font-size: var(--drawer-font-size);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted);
@@ -154,7 +154,7 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  font-size: 22px;
+  font-size: var(--drawer-font-size);
   line-height: 1.35;
 }
 
@@ -166,7 +166,7 @@
 }
 
 .header-drawer__field-label {
-  font-size: 22px;
+  font-size: var(--drawer-font-size);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -186,7 +186,7 @@
   box-sizing: border-box;
   padding-left: 0;
   padding-right: 0;
-  font-size: 22px;
+  font-size: var(--drawer-font-size);
   min-height: 48px;
   background: var(--surface-alt);
   color: var(--text);
@@ -204,14 +204,14 @@
 }
 
 .kds-flow-active .header-drawer .view-toggle--drawer .view-toggle__btn.active {
-  background: rgba(255, 255, 255, 0.18);
-  color: var(--text);
+  background: var(--paid);
+  color: var(--bg);
 }
 
 /* Primary (filled) actions in drawer — full-width CTAs */
 .header-drawer__body .header-drawer__btn {
   width: 100%;
-  font-size: 22px;
+  font-size: var(--drawer-font-size);
   min-height: 52px;
   padding: 12px 18px;
   font-weight: 600;
@@ -226,21 +226,21 @@
 
 .header-drawer__body .demo-btn--primary.header-drawer__btn:not(.demo-btn--dismiss-old):hover {
   color: var(--bg);
-  background: #8f966f;
+  background: var(--paid-hover);
   border-color: transparent;
 }
 
-/* Dismiss old: primary filled amber (distinct from sage Recent orders) */
+/* Dismiss old: same sage primary as other drawer CTAs */
 .header-drawer__body .demo-btn--primary.demo-btn--dismiss-old.header-drawer__btn {
-  color: #faf3d4;
-  background: #5a4525;
-  border: 2px solid rgba(200, 140, 80, 0.55);
+  color: var(--bg);
+  background: var(--paid);
+  border: 2px solid transparent;
 }
 
 .header-drawer__body .demo-btn--primary.demo-btn--dismiss-old.header-drawer__btn:hover {
-  color: #fff8e8;
-  background: #6d5632;
-  border-color: rgba(220, 160, 90, 0.65);
+  color: var(--bg);
+  background: var(--paid-hover);
+  border-color: transparent;
 }
 .demo-btn:hover {
   color: var(--text);
@@ -256,7 +256,7 @@
 
 .demo-btn--primary:hover {
   color: var(--bg);
-  background: #8f966f;
+  background: var(--paid-hover);
   border-color: transparent;
 }
 
@@ -264,17 +264,17 @@
   filter: brightness(0.92);
 }
 
-/* Recall: same palette as Flow timer amber warning (`.flow-timer--amber`) */
+/* Recall: sage primary + warm ring (aligned with drawer / KDS accent) */
 .header-recall-btn.demo-btn--primary {
-  color: #efd47a;
-  background: #4a4024;
-  border-color: rgba(239, 212, 122, 0.42);
+  color: var(--bg);
+  background: var(--paid);
+  border-color: var(--sage-ring);
 }
 
 .header-recall-btn.demo-btn--primary:hover {
-  color: #faf3d4;
-  background: #5c4f32;
-  border-color: rgba(239, 212, 122, 0.55);
+  color: var(--bg);
+  background: var(--paid-hover);
+  border-color: var(--sage-ring-strong);
 }
 
 .header-recall-btn.demo-btn--primary:active {
@@ -287,13 +287,13 @@
 }
 
 .demo-btn--dismiss-old {
-  border-color: rgba(180, 120, 60, 0.45);
-  color: #b8956a;
+  border-color: var(--sage-ring-soft);
+  color: var(--text);
 }
 .demo-btn--dismiss-old:hover {
-  border-color: rgba(200, 140, 80, 0.7);
+  border-color: var(--sage-ring);
   color: var(--text);
-  background: rgba(180, 120, 60, 0.1);
+  background: color-mix(in srgb, var(--paid) 14%, transparent);
 }
 
 .demo-toast {

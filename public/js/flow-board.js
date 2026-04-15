@@ -122,6 +122,75 @@ export function animateOutFlowOrder(id) {
   });
 }
 
+/**
+ * Swipe all listed flow orders off-screen in one go (single FLIP pass afterward).
+ * Used for "Dismiss old" so cards do not leave one-by-one waiting on API.
+ * @param {string[]} ids
+ * @returns {Promise<void>}
+ */
+export function animateOutFlowOrdersBatch(ids) {
+  const unique = [...new Set(ids)];
+
+  for (const id of unique) {
+    if (!document.getElementById(`flow-order-${id}`)) {
+      applyDismissFromFlow(id);
+    }
+  }
+
+  const articles = unique.map((id) => document.getElementById(`flow-order-${id}`)).filter(Boolean);
+
+  const applyAllDismiss = () => {
+    for (const id of unique) applyDismissFromFlow(id);
+  };
+
+  if (!flowGrid || articles.length === 0) {
+    return Promise.resolve();
+  }
+  if (!g || !FlipPlugin) {
+    for (const el of articles) el.remove();
+    applyAllDismiss();
+    return Promise.resolve();
+  }
+
+  const articleSet = new Set(articles);
+  const remaining = [...flowGrid.querySelectorAll('.flow-order')].filter((node) => !articleSet.has(node));
+  const flipState = remaining.length ? FlipPlugin.getState(remaining) : null;
+
+  return new Promise((resolve) => {
+    let finished = 0;
+    const doneOne = () => {
+      finished += 1;
+      if (finished < articles.length) return;
+      for (const el of articles) el.remove();
+      if (flipState) {
+        FlipPlugin.from(flipState, {
+          duration: 0.35,
+          ease: 'power2.out',
+          absolute: true,
+        });
+      }
+      applyAllDismiss();
+      resolve();
+    };
+
+    for (const el of articles) {
+      const slide = getFlowSlideEl(el);
+      slide.style.animation = 'none';
+      const rect = el.getBoundingClientRect();
+      const deltaX = window.innerWidth - rect.left + 48;
+      const curX = parseFloat(g.getProperty(slide, 'x', 'px')) || 0;
+
+      g.to(slide, {
+        x: curX + deltaX,
+        opacity: 0,
+        duration: 0.22,
+        ease: 'power2.in',
+        onComplete: doneOne,
+      });
+    }
+  });
+}
+
 function completeSwipeDismiss(article, orderId, onDismiss) {
   if (!flowGrid) {
     article.remove();
