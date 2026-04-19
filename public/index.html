@@ -74,10 +74,13 @@
       <button type="button" class="order-modal-close" id="history-modal-close" aria-label="Close">&times;</button>
     </div>
     <div class="history-modal-toolbar">
-      <div class="history-source-toggle" role="group" aria-label="Order source">
-        <button type="button" class="active" data-history-source="db">App orders</button>
-        <button type="button" data-history-source="square">Square (all)</button>
-      </div>
+      <select id="history-service-filter" class="history-period-select history-service-filter" aria-label="Service type">
+        <option value="all" selected>All</option>
+        <option value="pickup">Pickup</option>
+        <option value="takeaway">Takeaway</option>
+        <option value="sit_in">Sit in</option>
+      </select>
+      <input type="search" id="history-order-search" class="history-order-search" placeholder="Search name, items, mods…" title="Matches customer name, item names, modifiers, and notes" aria-label="Filter orders by text" autocomplete="off" />
       <select id="history-period-select" class="history-period-select" aria-label="Time range">
         <option value="hour">Last hour</option>
         <option value="today" selected>Today</option>

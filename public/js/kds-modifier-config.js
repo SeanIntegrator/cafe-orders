@@ -3,6 +3,8 @@
  * Square = coffee modifiers; round = additions. Extra shot → square (brief).
  */
 
+import { normalizeKdsNoteTypos } from './kds-milk-test-parser.js';
+
 /** Optional: map Square catalog_object_id → two-letter bean label (Et, Co, …). Curated in admin later. */
 export const KDS_BEAN_LABEL_BY_CATALOG_ID = Object.freeze({});
 
@@ -53,7 +55,7 @@ const TEXTURE_RE =
 
 /** Flow milk chip: include iced/cold as temperature segment. */
 const FLOW_MILK_TEMP_RE =
-  /\b(extra\s+hot|extra\s+warm|warmer?|warm\b|iced|ice\b|cold|a\s+little\s+cooler|cooler\b|kid\s*temp|lukewarm)\b/i;
+  /\b(extra\s+hot|hot|extra\s+warm|warmer?|warm\b|iced|ice\b|cold|a\s+little\s+cooler|cooler\b|kid\s*temp|lukewarm)\b/i;
 
 const SHOT_QUAD_RE = /\bquad(?:ruple)?\s+shot\b|\b4\s*x\s*shot\b/i;
 const SHOT_TRIPLE_RE = /\btriple\s+shot\b|\b3\s*x\s*shot\b/i;
@@ -111,7 +113,7 @@ export function flowSyrupChipParts(rawName) {
  */
 const MILK_CHIP_TEMP_EXCLUDE = /\b(iced|ice\b|cold|frappe|frappé|slush)\b/i;
 const MILK_CHIP_TEMP_INCLUDE =
-  /\b(extra\s+hot|extra\s+warm|warmer?|warm\b|a\s+little\s+cooler|cooler\b|kid\s*temp|lukewarm)\b/i;
+  /\b(extra\s+hot|hot|extra\s+warm|warmer?|warm\b|a\s+little\s+cooler|cooler\b|kid\s*temp|lukewarm)\b/i;
 
 export function isSyrupModifier(name) {
   return SYRUP_RE.test(String(name || ''));
@@ -168,8 +170,9 @@ export function hasDecafModifier(names) {
 export function getMergedLineNote(item) {
   const a = item?.customer_note != null ? String(item.customer_note).trim() : '';
   const b = item?.note != null ? String(item.note).trim() : '';
-  if (a && b && a !== b) return `${a} ${b}`.replace(/\s+/g, ' ').trim();
-  return a || b;
+  const merged =
+    a && b && a !== b ? `${a} ${b}`.replace(/\s+/g, ' ').trim() : a || b;
+  return normalizeKdsNoteTypos(merged);
 }
 
 export function decafSuggestedByLineNote(item) {
@@ -373,8 +376,11 @@ const DEFAULT_ESPRESSO_SHOTS = 2;
  * @returns {string[]}
  */
 function shotSignalNames(item) {
-  const names = (item?.modifiers || []).map((m) => m?.name).filter(Boolean);
-  const note = String(item?.customer_note || item?.note || '').trim();
+  const names = (item?.modifiers || [])
+    .map((m) => m?.name)
+    .filter(Boolean)
+    .map((n) => normalizeKdsNoteTypos(String(n)));
+  const note = normalizeKdsNoteTypos(String(item?.customer_note || item?.note || '').trim());
   if (note) names.push(note);
   return names;
 }

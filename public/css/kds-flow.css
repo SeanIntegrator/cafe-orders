@@ -620,8 +620,12 @@ body.kds-flow-active {
 }
 
 .flow-milk-chip__sep {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
   font-style: normal;
-  margin: 0px 2px 0px 2px;
+  line-height: 1;
+  margin: 0 2px;
 }
 
 .flow-milk-chip__texture {
@@ -649,7 +653,8 @@ body.kds-flow-active {
   background: #faf6f0;
   display: flex;
   align-items: center;
-  padding: 3px 8px 3px 8px;
+  box-sizing: border-box;
+  padding: 0 8px;
   font-style: italic;
   font-weight: 500;
   font-size: clamp(17px, 1.9vw, 22px);
@@ -959,6 +964,88 @@ body.kds-flow-active {
 }
 
 /* FOOD ribbon is section chrome, not line content — do not strike through */
+
+/* Mobile: stack detail (notes / allergies) on a second row under base + prep */
+@media (max-width: 767px) {
+  .flow-row[data-kds-line='drink'],
+  .flow-row[data-kds-line='drink']:has(.flow-row__note, .flow-row__allergy),
+  .flow-row[data-kds-line='drink']:not(:has(.flow-row__note, .flow-row__allergy)) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    grid-template-areas:
+      'flowBase flowPrep'
+      'flowDetail flowDetail';
+  }
+
+  .flow-row[data-kds-line='drink'] .flow-row__base {
+    grid-area: flowBase;
+    min-width: 0;
+    padding-right: 10px;
+  }
+
+  .flow-row[data-kds-line='drink'] .flow-row__prep {
+    grid-area: flowPrep;
+    width: auto;
+    max-width: 100%;
+    justify-self: end;
+  }
+
+  .flow-row[data-kds-line='drink']:has(.flow-row__note, .flow-row__allergy) .flow-row__prep {
+    width: auto;
+    max-width: 100%;
+  }
+
+  .flow-row[data-kds-line='drink'] .flow-row__detail {
+    grid-area: flowDetail;
+    justify-self: stretch;
+    width: 100%;
+    max-width: none;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  /* Food: same 2-row layout as drinks; FOOD ribbon overlays row 1 when present */
+  .flow-row[data-kds-line='food'],
+  .flow-row[data-kds-line='food']:has(.flow-row__allergy--line) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    grid-template-areas:
+      'flowBase flowPrep'
+      'flowDetail flowDetail';
+  }
+
+  .flow-row[data-kds-line='food'] .flow-row__base {
+    grid-area: flowBase;
+    min-width: 0;
+    padding-right: 10px;
+  }
+
+  .flow-row[data-kds-line='food'] .flow-row__prep {
+    grid-area: flowPrep;
+    justify-self: end;
+    max-width: 100%;
+  }
+
+  .flow-row[data-kds-line='food'] .flow-row__detail {
+    grid-area: flowDetail;
+    justify-self: stretch;
+    width: 100%;
+    max-width: none;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .flow-row--food-first .flow-row__food-line {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    top: 0;
+    height: 0;
+    margin: 0;
+  }
+}
 
 @media (min-width: 1200px) {
   .flow-row {

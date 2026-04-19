@@ -149,6 +149,7 @@ setInterval(updateTimers, 1000);
 document.getElementById('dismiss-old-orders-btn')?.addEventListener('click', async () => {
   const btn = document.getElementById('dismiss-old-orders-btn');
   if (!btn) return;
+  closeHeaderDrawer();
   btn.disabled = true;
   try {
     await dismissOrdersPastWaitThreshold();

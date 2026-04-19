@@ -1,24 +1,34 @@
 /**
- * KDS — recent orders modal. Supports two sources:
- *   db     → GET /api/kds/orders  (only order_source web_app / whatsapp from Postgres)
- *   square → GET /api/square/orders (all Square orders incl. POS)
+ * KDS — recent orders modal: merged Postgres (app) + Square orders,
+ * service-type filter, text search, period range.
  */
 
-import { orders } from './state.js';
+import { orders, serviceModifierOptionIds } from './state.js';
 import { addOrUpdateOrder } from './board.js';
 import { showToast } from './ui.js';
+import {
+  getServiceLabel,
+  getServiceChoiceFromModifiers,
+  isEatInOrder,
+} from './helpers.js';
 
 const overlay = document.getElementById('history-modal-overlay');
 const closeBtn = document.getElementById('history-modal-close');
 const openBtn = document.getElementById('history-recall-btn');
 const listEl = document.getElementById('history-modal-list');
 const periodSelect = document.getElementById('history-period-select');
-const sourceButtons = document.querySelectorAll('[data-history-source]');
+const serviceSelect = document.getElementById('history-service-filter');
+const searchInput = document.getElementById('history-order-search');
 
 let currentPeriod = 'today';
-let currentSource = 'db'; // 'db' | 'square'
-let squareCursor = null;  // pagination cursor for Square source
-let squareAccumulated = []; // orders accumulated across Load More pages
+let squareCursor = null;
+let squareAccumulated = [];
+/** @type {any[]} */
+let cachedDbOrders = [];
+/** @type {{ kind: 'db'|'square', order: any, serviceBucket: string|null, haystack: string, sortKey: string }[]} */
+let cachedBaseMergedRows = [];
+
+let searchDebounceTimer = null;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -74,6 +84,133 @@ function modifiersPrepHtml(parts) {
     .map((p) => `<span class="flow-chip-pill">${escapeHtml(p)}</span>`)
     .join('');
   return `<div class="history-line-prep" role="presentation">${pills}</div>`;
+}
+
+function squareCustomerName(order) {
+  const ff = order.fulfillments;
+  if (Array.isArray(ff) && ff.length) {
+    const displayName =
+      ff[0]?.pickup_details?.recipient?.display_name ||
+      ff[0]?.delivery_details?.recipient?.display_name ||
+      ff[0]?.shipment_details?.recipient?.display_name;
+    if (displayName) return displayName;
+  }
+  return null;
+}
+
+/** @returns {string|null} 'PICKUP' | 'TAKEAWAY' | 'SIT IN' | null (null = unclassified, only in All) */
+function serviceBucketSquare(order) {
+  return getServiceLabel(order, isEatInOrder(order), serviceModifierOptionIds);
+}
+
+/** @returns {string|null} */
+function serviceBucketDb(order) {
+  const line_items = (order.items || []).map((it) => ({
+    name: it.item_name || 'Item',
+    modifiers: (it.modifiers || []).map((m) => ({
+      name: modifierLabel(m),
+      catalog_object_id: (m && m.catalog_object_id) || '',
+    })),
+  }));
+  return getServiceChoiceFromModifiers({ line_items }, serviceModifierOptionIds);
+}
+
+function haystackDb(order) {
+  const parts = [order.customer_name, order.notes];
+  for (const it of order.items || []) {
+    parts.push(it.item_name, it.customer_note);
+    for (const m of it.modifiers || []) parts.push(modifierLabel(m));
+  }
+  return parts
+    .filter((x) => x != null && String(x).trim())
+    .join('\n')
+    .toLowerCase();
+}
+
+function haystackSquare(order) {
+  const parts = [squareCustomerName(order), order.note];
+  for (const it of order.line_items || []) {
+    parts.push(it.name, it.note);
+    for (const m of it.modifiers || []) parts.push(m && m.name ? String(m.name) : '');
+  }
+  return parts
+    .filter((x) => x != null && String(x).trim())
+    .join('\n')
+    .toLowerCase();
+}
+
+/**
+ * Square wins when the same square id exists in both feeds; DB-only rows stay for recall without Square mirror.
+ * @param {any[]} dbOrders
+ * @param {any[]} squareOrders
+ */
+function buildMergedRows(dbOrders, squareOrders) {
+  const sqIds = new Set(
+    (squareOrders || []).map((o) => (o && o.id ? String(o.id) : '')).filter(Boolean)
+  );
+  /** @type {{ kind: 'db'|'square', order: any, serviceBucket: string|null, haystack: string, sortKey: string }[]} */
+  const rows = [];
+
+  for (const o of squareOrders || []) {
+    if (!o) continue;
+    rows.push({
+      kind: 'square',
+      order: o,
+      serviceBucket: serviceBucketSquare(o),
+      haystack: haystackSquare(o),
+      sortKey: String(o.created_at || ''),
+    });
+  }
+
+  for (const o of dbOrders || []) {
+    if (!o) continue;
+    const sid = o.square_order_id != null ? String(o.square_order_id).trim() : '';
+    if (sid && sqIds.has(sid)) continue;
+    rows.push({
+      kind: 'db',
+      order: o,
+      serviceBucket: serviceBucketDb(o),
+      haystack: haystackDb(o),
+      sortKey: String(o.created_at || ''),
+    });
+  }
+
+  rows.sort((a, b) => {
+    const ta = new Date(a.sortKey).getTime();
+    const tb = new Date(b.sortKey).getTime();
+    return (Number.isFinite(tb) ? tb : 0) - (Number.isFinite(ta) ? ta : 0);
+  });
+  return rows;
+}
+
+function filterKeyToServiceBucket(key) {
+  const k = String(key || 'all').toLowerCase();
+  if (k === 'pickup') return 'PICKUP';
+  if (k === 'takeaway') return 'TAKEAWAY';
+  if (k === 'sit_in') return 'SIT IN';
+  return null;
+}
+
+function getCurrentServiceFilterKey() {
+  return (serviceSelect && serviceSelect.value) || 'all';
+}
+
+function getCurrentSearchQuery() {
+  return (searchInput && searchInput.value) || '';
+}
+
+function filterMergedRows(baseRows) {
+  const serviceKey = getCurrentServiceFilterKey();
+  const targetBucket = filterKeyToServiceBucket(serviceKey);
+  let rows = baseRows;
+  if (targetBucket) {
+    rows = rows.filter((r) => r.serviceBucket === targetBucket);
+  }
+  const q = getCurrentSearchQuery().trim().toLowerCase();
+  if (q) {
+    rows = rows.filter((r) => r.haystack.includes(q));
+  }
+  return rows;
 }
 
 // ---------------------------------------------------------------------------
@@ -212,14 +349,12 @@ async function fetchDbHistory(period) {
 // Square orders (all types incl. POS)
 // ---------------------------------------------------------------------------
 
-/** Map a period name to a created_at lower-bound ISO string. */
 function periodToSquareFrom(period) {
   const now = Date.now();
   if (period === 'hour') return new Date(now - 60 * 60 * 1000).toISOString();
   if (period === 'week') return new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
   if (period === '30d') return new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
   if (period === 'all') return '2020-01-01T00:00:00Z';
-  // today — start of current UTC day
   const d = new Date(now);
   d.setUTCHours(0, 0, 0, 0);
   return d.toISOString();
@@ -242,26 +377,12 @@ function squareStateBadgeClass(state) {
 }
 
 function squareSourceLabel(order) {
-  // source.name from Square e.g. "Square Point of Sale", "Online Store", etc.
   const name = order.source?.name;
   if (!name) return 'Square';
   const n = name.toLowerCase();
   if (n.includes('point of sale') || n === 'square') return 'POS';
   if (n.includes('online')) return 'Online';
   return name;
-}
-
-function squareCustomerName(order) {
-  // Try fulfillment recipient first
-  const ff = order.fulfillments;
-  if (Array.isArray(ff) && ff.length) {
-    const displayName =
-      ff[0]?.pickup_details?.recipient?.display_name ||
-      ff[0]?.delivery_details?.recipient?.display_name ||
-      ff[0]?.shipment_details?.recipient?.display_name;
-    if (displayName) return displayName;
-  }
-  return null;
 }
 
 function squareLineItemRow(it) {
@@ -326,7 +447,7 @@ async function fetchSquareOrders(period, cursor) {
   const res = await fetch(`/api/square/orders?${params}`);
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
-  return data; // { orders, cursor, count }
+  return data;
 }
 
 // ---------------------------------------------------------------------------
@@ -344,19 +465,20 @@ function setError(msg) {
   listEl.innerHTML = `<div class="history-error">${escapeHtml(msg)}</div>`;
 }
 
-function renderOrders(orders, source, nextCursor) {
-  if (!orders.length) {
-    listEl.innerHTML =
-      '<div class="history-empty">No orders in this time range.<br>' +
-      (source === 'square'
-        ? '<span class="history-empty-hint">No Square orders found — try a wider time range.</span>'
-        : '<span class="history-empty-hint">Orders from the customer app appear here after checkout.</span>') +
-      '</div>';
+function renderMergedRows(rows, nextCursor) {
+  if (!rows.length) {
+    const baseEmpty = !cachedBaseMergedRows.length;
+    listEl.innerHTML = baseEmpty
+      ? '<div class="history-empty">No orders in this time range.<br>' +
+        '<span class="history-empty-hint">Try a wider time range, or check back after new orders complete.</span></div>'
+      : '<div class="history-empty">No orders match this filter or search.<br>' +
+        '<span class="history-empty-hint">Try All, clear the search, or widen the time range.</span></div>';
     return;
   }
 
-  const renderer = source === 'square' ? renderSquareOrder : renderDbOrder;
-  const html = orders.map(renderer).join('');
+  const html = rows
+    .map((r) => (r.kind === 'square' ? renderSquareOrder(r.order) : renderDbOrder(r.order)))
+    .join('');
 
   const loadMore = nextCursor
     ? `<div class="history-load-more-wrap">
@@ -364,11 +486,16 @@ function renderOrders(orders, source, nextCursor) {
        </div>`
     : '';
 
-  const count = `<div class="history-result-count">${orders.length} order${orders.length !== 1 ? 's' : ''}${nextCursor ? '+' : ''}</div>`;
+  const count = `<div class="history-result-count">${rows.length} order${rows.length !== 1 ? 's' : ''}${nextCursor ? '+' : ''}</div>`;
 
   listEl.innerHTML = count + html + loadMore;
 
   document.getElementById('history-load-more')?.addEventListener('click', loadMoreSquare);
+}
+
+function applyFiltersAndRender() {
+  const filtered = filterMergedRows(cachedBaseMergedRows);
+  renderMergedRows(filtered, squareCursor);
 }
 
 // ---------------------------------------------------------------------------
@@ -378,17 +505,40 @@ function renderOrders(orders, source, nextCursor) {
 async function loadAndRender() {
   squareCursor = null;
   squareAccumulated = [];
+  cachedDbOrders = [];
+  cachedBaseMergedRows = [];
   setLoading();
   try {
-    if (currentSource === 'square') {
-      const data = await fetchSquareOrders(currentPeriod, null);
-      squareAccumulated = data.orders || [];
-      squareCursor = data.cursor || null;
-      renderOrders(squareAccumulated, 'square', squareCursor);
+    const [dbSettled, sqSettled] = await Promise.allSettled([
+      fetchDbHistory(currentPeriod),
+      fetchSquareOrders(currentPeriod, null),
+    ]);
+
+    if (dbSettled.status === 'fulfilled') {
+      cachedDbOrders = dbSettled.value.orders || [];
     } else {
-      const data = await fetchDbHistory(currentPeriod);
-      renderOrders(data.orders || [], 'db', null);
+      cachedDbOrders = [];
+      console.warn('Recent orders: DB fetch failed', dbSettled.reason);
     }
+
+    if (sqSettled.status === 'fulfilled') {
+      squareAccumulated = sqSettled.value.orders || [];
+      squareCursor = sqSettled.value.cursor || null;
+    } else {
+      squareAccumulated = [];
+      squareCursor = null;
+      console.warn('Recent orders: Square fetch failed', sqSettled.reason);
+    }
+
+    if (dbSettled.status === 'rejected' && sqSettled.status === 'rejected') {
+      const e1 = dbSettled.reason?.message || String(dbSettled.reason);
+      const e2 = sqSettled.reason?.message || String(sqSettled.reason);
+      setError(e1 || e2 || 'Could not load orders');
+      return;
+    }
+
+    cachedBaseMergedRows = buildMergedRows(cachedDbOrders, squareAccumulated);
+    applyFiltersAndRender();
   } catch (e) {
     setError(e.message || 'Could not load orders');
   }
@@ -396,15 +546,21 @@ async function loadAndRender() {
 
 async function loadMoreSquare() {
   const btn = document.getElementById('history-load-more');
-  if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Loading…';
+  }
   try {
     const data = await fetchSquareOrders(currentPeriod, squareCursor);
     squareAccumulated = squareAccumulated.concat(data.orders || []);
     squareCursor = data.cursor || null;
-    renderOrders(squareAccumulated, 'square', squareCursor);
+    cachedBaseMergedRows = buildMergedRows(cachedDbOrders, squareAccumulated);
+    applyFiltersAndRender();
   } catch (e) {
-    if (btn) { btn.disabled = false; btn.textContent = 'Load more'; }
-    // append error below existing list
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Load more';
+    }
     const errEl = document.createElement('div');
     errEl.className = 'history-error';
     errEl.textContent = e.message || 'Could not load more';
@@ -416,13 +572,13 @@ async function loadMoreSquare() {
 // Modal open/close
 // ---------------------------------------------------------------------------
 
-function syncPeriodSelect() {
+function syncToolbarControls() {
   if (periodSelect) periodSelect.value = currentPeriod;
 }
 
 function openModal() {
   overlay.classList.add('visible');
-  syncPeriodSelect();
+  syncToolbarControls();
   loadAndRender();
 }
 
@@ -442,22 +598,23 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ---------------------------------------------------------------------------
-// Source toggle
+// Toolbar: service filter, search, period
 // ---------------------------------------------------------------------------
 
-sourceButtons.forEach((btn) => {
-  btn.addEventListener('click', () => {
-    const src = btn.getAttribute('data-history-source');
-    if (!src || src === currentSource) return;
-    currentSource = src;
-    sourceButtons.forEach((b) => b.classList.toggle('active', b === btn));
-    loadAndRender();
-  });
+serviceSelect?.addEventListener('change', () => {
+  applyFiltersAndRender();
 });
 
-// ---------------------------------------------------------------------------
-// Period dropdown
-// ---------------------------------------------------------------------------
+function scheduleSearchApply() {
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => {
+    searchDebounceTimer = null;
+    applyFiltersAndRender();
+  }, 200);
+}
+
+searchInput?.addEventListener('input', scheduleSearchApply);
+searchInput?.addEventListener('change', scheduleSearchApply);
 
 periodSelect?.addEventListener('change', () => {
   const p = periodSelect.value;
@@ -466,7 +623,7 @@ periodSelect?.addEventListener('change', () => {
   loadAndRender();
 });
 
-syncPeriodSelect();
+syncToolbarControls();
 
 listEl?.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-recall-square-id]');
